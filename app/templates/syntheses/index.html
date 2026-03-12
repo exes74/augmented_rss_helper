@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Synthèses{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Synthèses IA</h1>
+        <p class="text-sm text-gray-500 mt-1">Historique de vos synthèses quotidiennes et hebdomadaires</p>
+    </div>
+
+    <!-- Filtres -->
+    <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('syntheses.index') }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if not type_filter %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200{% endif %}">
+            Toutes
+        </a>
+        <a href="{{ url_for('syntheses.index', type='daily') }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if type_filter == 'daily' %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200{% endif %}">
+            📰 Quotidiennes
+        </a>
+        <a href="{{ url_for('syntheses.index', type='weekly') }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if type_filter == 'weekly' %}bg-purple-600 text-white border-purple-600{% else %}bg-white text-gray-600 border-gray-200{% endif %}">
+            📊 Hebdomadaires
+        </a>
+        {% for cat in categories %}
+        <a href="{{ url_for('syntheses.index', category=cat.id) }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if selected_category == cat.id %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200{% endif %}">
+            {{ cat.name }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Liste des synthèses -->
+    {% if syntheses.items %}
+    <div class="space-y-4">
+        {% for synthesis in syntheses.items %}
+        <a href="{{ url_for('syntheses.detail', synthesis_id=synthesis.id) }}"
+           class="block bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300
+                  hover:shadow-sm transition-all">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start space-x-3">
+                    <span class="text-2xl mt-0.5">
+                        {% if synthesis.is_weekly %}📊{% else %}📰{% endif %}
+                    </span>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-semibold text-gray-900">
+                                {% if synthesis.category %}{{ synthesis.category.name }}{% else %}Général{% endif %}
+                            </span>
+                            <span class="text-xs px-2 py-0.5 rounded-full
+                                         {% if synthesis.is_weekly %}bg-purple-100 text-purple-700
+                                         {% else %}bg-blue-100 text-blue-700{% endif %}">
+                                {% if synthesis.is_weekly %}Hebdomadaire{% else %}Quotidienne{% endif %}
+                            </span>
+                            {% if synthesis.email_sent %}
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
+                                ✉ Envoyé
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="text-sm text-gray-500 mt-1">{{ synthesis.period_label }}</div>
+                        {% if synthesis.content %}
+                        <p class="text-sm text-gray-600 mt-2 line-clamp-2">
+                            {{ synthesis.content[:200] }}...
+                        </p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-right text-xs text-gray-400 ml-4 flex-shrink-0">
+                    <div>{{ synthesis.articles_count }} articles</div>
+                    {% if synthesis.is_weekly and synthesis.draft_linkedin %}
+                    <div class="mt-1 text-blue-600">💼 LinkedIn</div>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if syntheses.pages > 1 %}
+    <div class="flex justify-center space-x-2">
+        {% if syntheses.has_prev %}
+        <a href="{{ url_for('syntheses.index', page=syntheses.prev_num, type=type_filter, category=selected_category) }}"
+           class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+            ← Précédent
+        </a>
+        {% endif %}
+        <span class="px-3 py-2 text-sm text-gray-600">
+            Page {{ syntheses.page }} / {{ syntheses.pages }}
+        </span>
+        {% if syntheses.has_next %}
+        <a href="{{ url_for('syntheses.index', page=syntheses.next_num, type=type_filter, category=selected_category) }}"
+           class="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+            Suivant →
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div class="text-5xl mb-4">🤖</div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Aucune synthèse disponible</h3>
+        <p class="text-gray-500 text-sm">
+            Les synthèses sont générées automatiquement chaque matin après la collecte des articles.
+        </p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+# Environnement
+.env
+*.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Logs
+*.log
+logs/
+app/logs/
+
+# Celery
+celerybeat-schedule
+celerybeat/
+*.pid
+
+# Base de données locale
+*.db
+*.sqlite3
+
+# Docker volumes locaux
+postgres_data/
+redis_data/
+
+# SSL (ne jamais commiter les certificats)
+nginx/ssl/
+nginx_ssl/
+*.pem
+*.key
+*.crt
+*.csr
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Coverage / tests
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Archives
+*.zip
+*.tar.gz

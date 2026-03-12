@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Catégories{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Catégories</h1>
+        <p class="text-sm text-gray-500 mt-1">Organisez vos flux RSS par thématiques</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <!-- Formulaire d'ajout -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 class="font-semibold text-gray-900 mb-4">Nouvelle catégorie</h2>
+            <form method="POST" action="{{ url_for('categories.add') }}" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+                        Nom <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="name" name="name" required maxlength="100"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+                                  focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ex: Intelligence Artificielle">
+                </div>
+                <div>
+                    <label for="color" class="block text-sm font-medium text-gray-700 mb-1">
+                        Couleur
+                    </label>
+                    <div class="flex items-center space-x-3">
+                        <input type="color" id="color" name="color" value="#3B82F6"
+                               class="w-10 h-10 rounded border border-gray-300 cursor-pointer">
+                        <div class="flex space-x-2">
+                            {% for color in ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'] %}
+                            <button type="button" onclick="document.getElementById('color').value='{{ color }}'"
+                                    class="w-6 h-6 rounded-full border-2 border-white shadow-sm hover:scale-110 transition-transform"
+                                    style="background-color: {{ color }}"></button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <button type="submit"
+                        class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white
+                               font-medium rounded-lg text-sm transition-colors">
+                    Créer la catégorie
+                </button>
+            </form>
+        </div>
+
+        <!-- Liste des catégories -->
+        <div class="space-y-3">
+            {% if categories %}
+            {% for cat in categories %}
+            <div class="bg-white rounded-xl border border-gray-200 p-4
+                        {% if not cat.active %}opacity-60{% endif %}">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-4 h-4 rounded-full" style="background-color: {{ cat.color }}"></div>
+                        <div>
+                            <span class="font-medium text-gray-900">{{ cat.name }}</span>
+                            <span class="text-xs text-gray-500 ml-2">{{ cat.feeds_count }} flux</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <!-- Toggle -->
+                        <form method="POST" action="{{ url_for('categories.toggle', cat_id=cat.id) }}" class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                    class="text-xs px-2 py-1 rounded border
+                                           {% if cat.active %}border-gray-200 text-gray-600 hover:bg-gray-50
+                                           {% else %}border-green-200 text-green-600 hover:bg-green-50{% endif %}">
+                                {% if cat.active %}Désactiver{% else %}Activer{% endif %}
+                            </button>
+                        </form>
+                        <!-- Supprimer -->
+                        <form method="POST" action="{{ url_for('categories.delete', cat_id=cat.id) }}" class="inline"
+                              onsubmit="return confirm('Supprimer cette catégorie et tous ses flux ?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                    class="text-xs px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">
+                                Supprimer
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                <div class="text-4xl mb-3">🏷️</div>
+                <p class="text-gray-500 text-sm">Aucune catégorie créée</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

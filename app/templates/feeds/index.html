@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Flux RSS{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- En-tête -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Flux RSS</h1>
+            <p class="text-sm text-gray-500 mt-1">{{ feeds|length }} flux configuré(s)</p>
+        </div>
+        <a href="{{ url_for('feeds.add') }}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700
+                  text-white text-sm font-medium rounded-lg transition-colors">
+            + Ajouter un flux
+        </a>
+    </div>
+
+    <!-- Filtres -->
+    <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('feeds.index') }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if not selected_category and not status_filter %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300{% endif %}">
+            Tous
+        </a>
+        {% for cat in categories %}
+        <a href="{{ url_for('feeds.index', category=cat.id) }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if selected_category == cat.id %}bg-blue-600 text-white border-blue-600{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300{% endif %}">
+            {{ cat.name }}
+        </a>
+        {% endfor %}
+        <a href="{{ url_for('feeds.index', status='error') }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if status_filter == 'error' %}bg-orange-500 text-white border-orange-500{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300{% endif %}">
+            Erreurs
+        </a>
+        <a href="{{ url_for('feeds.index', status='dead') }}"
+           class="px-3 py-1.5 text-sm rounded-lg border
+                  {% if status_filter == 'dead' %}bg-red-500 text-white border-red-500{% else %}bg-white text-gray-600 border-gray-200 hover:border-gray-300{% endif %}">
+            Inactifs
+        </a>
+    </div>
+
+    <!-- Liste des flux -->
+    {% if feeds %}
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700">Flux</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 hidden md:table-cell">Catégorie</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 hidden lg:table-cell">Dernière collecte</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700">Statut</th>
+                    <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for feed in feeds %}
+                <tr class="hover:bg-gray-50 {% if not feed.active %}opacity-60{% endif %}">
+                    <td class="px-4 py-3">
+                        <div class="font-medium text-gray-900">{{ feed.display_name }}</div>
+                        <div class="text-xs text-gray-400 truncate max-w-xs">{{ feed.url }}</div>
+                    </td>
+                    <td class="px-4 py-3 hidden md:table-cell">
+                        {% if feed.category %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                              style="background-color: {{ feed.category.color }}20; color: {{ feed.category.color }}">
+                            {{ feed.category.name }}
+                        </span>
+                        {% else %}
+                        <span class="text-gray-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 hidden lg:table-cell text-gray-500">
+                        {% if feed.last_fetched %}
+                        {{ feed.last_fetched.strftime('%d/%m %H:%M') }}
+                        {% else %}
+                        <span class="text-gray-400">Jamais</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                     {% if feed.status == 'active' %}bg-green-100 text-green-700
+                                     {% elif feed.status == 'error' %}bg-orange-100 text-orange-700
+                                     {% elif feed.status == 'dead' %}bg-red-100 text-red-700
+                                     {% else %}bg-gray-100 text-gray-600{% endif %}">
+                            {% if feed.status == 'active' %}● Actif
+                            {% elif feed.status == 'error' %}⚠ Erreur
+                            {% elif feed.status == 'dead' %}✕ Mort
+                            {% else %}○ Pausé{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex items-center justify-end space-x-2">
+                            <!-- Toggle actif/inactif -->
+                            <form method="POST" action="{{ url_for('feeds.toggle', feed_id=feed.id) }}"
+                                  class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="text-xs px-2 py-1 rounded border
+                                               {% if feed.active %}border-gray-200 text-gray-600 hover:bg-gray-50
+                                               {% else %}border-green-200 text-green-600 hover:bg-green-50{% endif %}">
+                                    {% if feed.active %}Désactiver{% else %}Activer{% endif %}
+                                </button>
+                            </form>
+                            <a href="{{ url_for('feeds.edit', feed_id=feed.id) }}"
+                               class="text-xs px-2 py-1 rounded border border-blue-200 text-blue-600 hover:bg-blue-50">
+                                Modifier
+                            </a>
+                            <form method="POST" action="{{ url_for('feeds.delete', feed_id=feed.id) }}"
+                                  class="inline"
+                                  onsubmit="return confirm('Supprimer ce flux et tous ses articles ?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="text-xs px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">
+                                    Supprimer
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl border border-gray-200 p-12 text-center">
+        <div class="text-5xl mb-4">📡</div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">Aucun flux RSS</h3>
+        <p class="text-gray-500 mb-6">Ajoutez votre premier flux RSS pour commencer la veille.</p>
+        <a href="{{ url_for('feeds.add') }}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700
+                  text-white text-sm font-medium rounded-lg transition-colors">
+            + Ajouter un flux RSS
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

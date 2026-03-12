@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Administration{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Administration</h1>
+            <p class="text-sm text-gray-500 mt-1">Gestion des utilisateurs</p>
+        </div>
+        <a href="{{ url_for('admin.invite') }}"
+           class="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700
+                  text-white text-sm font-medium rounded-lg transition-colors">
+            + Inviter un utilisateur
+        </a>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold text-blue-600">{{ stats.total_users }}</div>
+            <div class="text-sm text-gray-600 mt-1">Utilisateurs total</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold text-green-600">{{ stats.active_users }}</div>
+            <div class="text-sm text-gray-600 mt-1">Comptes actifs</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold text-indigo-600">{{ stats.total_feeds }}</div>
+            <div class="text-sm text-gray-600 mt-1">Flux RSS total</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold {% if stats.dead_feeds > 0 %}text-red-600{% else %}text-gray-400{% endif %}">
+                {{ stats.dead_feeds }}
+            </div>
+            <div class="text-sm text-gray-600 mt-1">Flux morts</div>
+        </div>
+    </div>
+
+    <!-- Liste des utilisateurs -->
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="font-semibold text-gray-900">Utilisateurs</h2>
+        </div>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700">Email</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700">Rôle</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 hidden md:table-cell">Créé le</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 hidden lg:table-cell">Dernière connexion</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700">Statut</th>
+                    <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for user in users %}
+                <tr class="hover:bg-gray-50 {% if not user.is_active %}opacity-60{% endif %}">
+                    <td class="px-4 py-3">
+                        <span class="font-medium text-gray-900">{{ user.email }}</span>
+                        {% if user.id == current_user.id %}
+                        <span class="text-xs text-blue-600 ml-1">(vous)</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if user.id != current_user.id %}
+                        <form method="POST" action="{{ url_for('admin.change_role', user_id=user.id) }}"
+                              class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <select name="role" onchange="this.form.submit()"
+                                    class="text-xs px-2 py-1 border border-gray-200 rounded bg-white">
+                                <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                            </select>
+                        </form>
+                        {% else %}
+                        <span class="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full">
+                            {{ user.role }}
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 hidden md:table-cell text-gray-500">
+                        {{ user.created_at.strftime('%d/%m/%Y') }}
+                    </td>
+                    <td class="px-4 py-3 hidden lg:table-cell text-gray-500">
+                        {% if user.last_login %}
+                        {{ user.last_login.strftime('%d/%m/%Y %H:%M') }}
+                        {% else %}
+                        <span class="text-gray-400">Jamais</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="text-xs px-2 py-0.5 rounded-full
+                                     {% if user.is_active %}bg-green-100 text-green-700
+                                     {% else %}bg-red-100 text-red-700{% endif %}">
+                            {% if user.is_active %}Actif{% else %}Désactivé{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        {% if user.id != current_user.id %}
+                        <div class="flex items-center justify-end space-x-2">
+                            <form method="POST" action="{{ url_for('admin.toggle_user', user_id=user.id) }}"
+                                  class="inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="text-xs px-2 py-1 rounded border
+                                               {% if user.is_active %}border-orange-200 text-orange-600 hover:bg-orange-50
+                                               {% else %}border-green-200 text-green-600 hover:bg-green-50{% endif %}">
+                                    {% if user.is_active %}Désactiver{% else %}Activer{% endif %}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}"
+                                  class="inline"
+                                  onsubmit="return confirm('Supprimer définitivement cet utilisateur ?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit"
+                                        class="text-xs px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">
+                                    Supprimer
+                                </button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

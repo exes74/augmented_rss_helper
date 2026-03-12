@@ -1,0 +1,125 @@
+"""
+Point d'entrée principal de l'application RSS Veille.
+"""
+import os
+import logging
+from flask import Flask, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
+from flask_mail import Mail
+
+from config import config
+
+# ─── Extensions globales ──────────────────────────────────────────────────
+db = SQLAlchemy()
+migrate = Migrate()
+login_manager = LoginManager()
+csrf = CSRFProtect()
+mail = Mail()
+
+
+def create_app(config_name: str = None) -> Flask:
+    """Factory de création de l'application Flask."""
+    if config_name is None:
+        config_name = os.environ.get("FLASK_ENV", "production")
+        if config_name == "development":
+            config_name = "development"
+        else:
+            config_name = "production"
+
+    app = Flask(__name__)
+    app.config.from_object(config[config_name])
+
+    # ─── Initialisation des extensions ────────────────────────────────────
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login_manager.init_app(app)
+    csrf.init_app(app)
+    mail.init_app(app)
+
+    # ─── Configuration Flask-Login ─────────────────────────────────────────
+    login_manager.login_view = "auth.login"
+    login_manager.login_message = "Veuillez vous connecter pour accéder à cette page."
+    login_manager.login_message_category = "warning"
+
+    # ─── Logging ──────────────────────────────────────────────────────────
+    setup_logging(app)
+
+    # ─── Enregistrement des blueprints ────────────────────────────────────
+    register_blueprints(app)
+
+    # ─── Création des tables (si nécessaire) ──────────────────────────────
+    with app.app_context():
+        db.create_all()
+
+    # ─── Route racine ─────────────────────────────────────────────────────
+    @app.route("/")
+    def index():
+        return redirect(url_for("dashboard.index"))
+
+    return app
+
+
+def register_blueprints(app: Flask) -> None:
+    """Enregistre tous les blueprints de l'application."""
+    from routes.auth import auth_bp
+    from routes.dashboard import dashboard_bp
+    from routes.feeds import feeds_bp
+    from routes.categories import categories_bp
+    from routes.syntheses import syntheses_bp
+    from routes.settings import settings_bp
+    from routes.admin import admin_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(feeds_bp)
+    app.register_blueprint(categories_bp)
+    app.register_blueprint(syntheses_bp)
+    app.register_blueprint(settings_bp)
+    app.register_blueprint(admin_bp)
+
+
+def setup_logging(app: Flask) -> None:
+    """Configure le logging structuré."""
+    import os
+    log_dir = app.config.get("LOG_DIR", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    log_level = getattr(logging, app.config.get("LOG_LEVEL", "INFO"))
+
+    # Handler fichier
+    file_handler = logging.FileHandler(os.path.join(log_dir, "app.log"))
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    ))
+
+    # Handler console
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    ))
+
+    app.logger.addHandler(file_handler)
+    app.logger.addHandler(console_handler)
+    app.logger.setLevel(log_level)
+
+    # Logger racine
+    logging.basicConfig(level=log_level, handlers=[file_handler, console_handler])
+
+
+# ─── User loader pour Flask-Login ─────────────────────────────────────────
+@login_manager.user_loader
+def load_user(user_id):
+    from models.user import User
+    return User.query.get(int(user_id))
+
+
+# ─── Point d'entrée ───────────────────────────────────────────────────────
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}Paramètres{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Paramètres</h1>
+        <p class="text-sm text-gray-500 mt-1">Préférences email et gestion des abonnés</p>
+    </div>
+
+    <!-- Préférences email -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="font-semibold text-gray-900 mb-5">📧 Préférences email</h2>
+        <form method="POST" action="{{ url_for('settings.update_preferences') }}" class="space-y-5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="grid md:grid-cols-2 gap-5">
+                <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer">
+                    <div>
+                        <div class="font-medium text-gray-900 text-sm">Synthèses quotidiennes</div>
+                        <div class="text-xs text-gray-500">Recevoir un email chaque matin</div>
+                    </div>
+                    <input type="checkbox" name="receive_daily"
+                           {% if current_user.get_preference('receive_daily', True) %}checked{% endif %}
+                           class="w-5 h-5 text-blue-600 rounded">
+                </label>
+
+                <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer">
+                    <div>
+                        <div class="font-medium text-gray-900 text-sm">Synthèses hebdomadaires</div>
+                        <div class="text-xs text-gray-500">Recevoir un email chaque semaine</div>
+                    </div>
+                    <input type="checkbox" name="receive_weekly"
+                           {% if current_user.get_preference('receive_weekly', True) %}checked{% endif %}
+                           class="w-5 h-5 text-blue-600 rounded">
+                </label>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Heure de réception (quotidien)
+                </label>
+                <select name="email_hour"
+                        class="w-full md:w-auto px-3 py-2 border border-gray-300 rounded-lg text-sm
+                               focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                    {% for h in range(0, 24) %}
+                    <option value="{{ h }}"
+                            {% if current_user.get_preference('email_hour', 7) == h %}selected{% endif %}>
+                        {{ '%02d'|format(h) }}:00
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {% if categories %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Catégories pour les emails quotidiens
+                </label>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {% set daily_cats = current_user.get_preference('daily_categories', []) %}
+                    {% for cat in categories %}
+                    <label class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" name="daily_categories" value="{{ cat.id }}"
+                               {% if cat.id in daily_cats %}checked{% endif %}
+                               class="w-4 h-4 text-blue-600 rounded">
+                        <span class="text-sm text-gray-700">{{ cat.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    Catégories pour les emails hebdomadaires
+                </label>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {% set weekly_cats = current_user.get_preference('weekly_categories', []) %}
+                    {% for cat in categories %}
+                    <label class="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                        <input type="checkbox" name="weekly_categories" value="{{ cat.id }}"
+                               {% if cat.id in weekly_cats %}checked{% endif %}
+                               class="w-4 h-4 text-purple-600 rounded">
+                        <span class="text-sm text-gray-700">{{ cat.name }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <button type="submit"
+                    class="py-2.5 px-6 bg-blue-600 hover:bg-blue-700 text-white
+                           font-medium rounded-lg text-sm transition-colors">
+                Enregistrer les préférences
+            </button>
+        </form>
+    </div>
+
+    <!-- Abonnés -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="font-semibold text-gray-900 mb-5">👥 Abonnés aux synthèses</h2>
+        <p class="text-sm text-gray-600 mb-4">
+            Ajoutez des emails qui recevront vos synthèses sans avoir accès à l'interface.
+        </p>
+
+        <!-- Formulaire d'ajout -->
+        <form method="POST" action="{{ url_for('settings.add_subscription') }}" class="flex gap-3 mb-5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="email" name="email" required placeholder="email@exemple.com"
+                   class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm
+                          focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label class="flex items-center space-x-1 text-sm text-gray-600">
+                <input type="checkbox" name="receive_daily" checked class="w-4 h-4">
+                <span>Quotidien</span>
+            </label>
+            <label class="flex items-center space-x-1 text-sm text-gray-600">
+                <input type="checkbox" name="receive_weekly" checked class="w-4 h-4">
+                <span>Hebdo</span>
+            </label>
+            <button type="submit"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm
+                           font-medium rounded-lg transition-colors">
+                Ajouter
+            </button>
+        </form>
+
+        <!-- Liste des abonnés -->
+        {% if subscriptions %}
+        <div class="space-y-2">
+            {% for sub in subscriptions %}
+            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                    <span class="text-sm font-medium text-gray-900">{{ sub.subscriber_email }}</span>
+                    <div class="flex space-x-2 mt-0.5">
+                        {% if sub.receive_daily %}
+                        <span class="text-xs text-blue-600">Quotidien</span>
+                        {% endif %}
+                        {% if sub.receive_weekly %}
+                        <span class="text-xs text-purple-600">Hebdo</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <form method="POST" action="{{ url_for('settings.delete_subscription', sub_id=sub.id) }}"
+                      class="inline" onsubmit="return confirm('Supprimer cet abonné ?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                            class="text-xs px-2 py-1 border border-red-200 text-red-600
+                                   hover:bg-red-50 rounded">
+                        Supprimer
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-400 text-center py-4">Aucun abonné pour l'instant</p>
+        {% endif %}
+    </div>
+
+    <!-- Changement de mot de passe -->
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="font-semibold text-gray-900 mb-5">🔒 Changer le mot de passe</h2>
+        <form method="POST" action="{{ url_for('settings.change_password') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe actuel</label>
+                <input type="password" name="current_password" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+                              focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Nouveau mot de passe</label>
+                <input type="password" name="new_password" required minlength="8"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+                              focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Confirmer le nouveau mot de passe</label>
+                <input type="password" name="confirm_password" required
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm
+                              focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <button type="submit"
+                    class="py-2.5 px-6 bg-gray-800 hover:bg-gray-900 text-white
+                           font-medium rounded-lg text-sm transition-colors">
+                Changer le mot de passe
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

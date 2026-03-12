@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- En-tête -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Tableau de bord</h1>
+            <p class="text-sm text-gray-500 mt-1">Vue d'ensemble de votre veille RSS</p>
+        </div>
+        <a href="{{ url_for('feeds.add') }}"
+           class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700
+                  text-white text-sm font-medium rounded-lg transition-colors">
+            + Ajouter un flux
+        </a>
+    </div>
+
+    <!-- Statistiques -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold text-blue-600">{{ feeds_stats.total }}</div>
+            <div class="text-sm text-gray-600 mt-1">Flux RSS total</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold text-green-600">{{ feeds_stats.active }}</div>
+            <div class="text-sm text-gray-600 mt-1">Flux actifs</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold text-indigo-600">{{ articles_today }}</div>
+            <div class="text-sm text-gray-600 mt-1">Articles (24h)</div>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="text-2xl font-bold {% if feeds_stats.dead > 0 %}text-red-600{% else %}text-gray-400{% endif %}">
+                {{ feeds_stats.dead }}
+            </div>
+            <div class="text-sm text-gray-600 mt-1">Flux inactifs</div>
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+        <!-- Synthèse du jour -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="font-semibold text-gray-900">Synthèse du jour</h2>
+                <a href="{{ url_for('syntheses.index', type='daily') }}"
+                   class="text-xs text-blue-600 hover:text-blue-700">Voir tout →</a>
+            </div>
+            {% if daily_synthesis_today %}
+            <div class="prose text-sm text-gray-700 max-h-48 overflow-y-auto">
+                {{ daily_synthesis_today.content | safe }}
+            </div>
+            <div class="mt-3 flex items-center justify-between text-xs text-gray-400">
+                <span>{{ daily_synthesis_today.articles_count }} articles analysés</span>
+                <a href="{{ url_for('syntheses.detail', synthesis_id=daily_synthesis_today.id) }}"
+                   class="text-blue-600 hover:text-blue-700">Lire la synthèse →</a>
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400">
+                <div class="text-3xl mb-2">🤖</div>
+                <p class="text-sm">Aucune synthèse générée aujourd'hui</p>
+                <p class="text-xs mt-1">La synthèse est générée automatiquement chaque matin</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Dernières synthèses -->
+        <div class="bg-white rounded-xl border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="font-semibold text-gray-900">Dernières synthèses</h2>
+                <a href="{{ url_for('syntheses.index') }}"
+                   class="text-xs text-blue-600 hover:text-blue-700">Voir tout →</a>
+            </div>
+            {% if recent_syntheses %}
+            <div class="space-y-3">
+                {% for synthesis in recent_syntheses %}
+                <a href="{{ url_for('syntheses.detail', synthesis_id=synthesis.id) }}"
+                   class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50
+                          border border-gray-100 transition-colors">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-lg">
+                            {% if synthesis.is_weekly %}📊{% else %}📰{% endif %}
+                        </span>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">
+                                {% if synthesis.category %}{{ synthesis.category.name }}{% else %}Général{% endif %}
+                            </div>
+                            <div class="text-xs text-gray-500">{{ synthesis.period_label }}</div>
+                        </div>
+                    </div>
+                    <span class="text-xs px-2 py-1 rounded-full
+                                 {% if synthesis.is_weekly %}bg-purple-100 text-purple-700
+                                 {% else %}bg-blue-100 text-blue-700{% endif %}">
+                        {% if synthesis.is_weekly %}Hebdo{% else %}Quotidien{% endif %}
+                    </span>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-8 text-gray-400">
+                <p class="text-sm">Aucune synthèse disponible</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Flux en erreur -->
+    {% if error_feeds %}
+    <div class="bg-red-50 border border-red-200 rounded-xl p-6">
+        <h2 class="font-semibold text-red-800 mb-3">⚠️ Flux en erreur</h2>
+        <div class="space-y-2">
+            {% for feed in error_feeds %}
+            <div class="flex items-center justify-between bg-white rounded-lg p-3 border border-red-100">
+                <div>
+                    <span class="text-sm font-medium text-gray-900">{{ feed.display_name }}</span>
+                    {% if feed.error_log %}
+                    <p class="text-xs text-red-600 mt-0.5">{{ feed.error_log[:100] }}</p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-xs px-2 py-1 rounded-full
+                                 {% if feed.is_dead %}bg-red-100 text-red-700{% else %}bg-orange-100 text-orange-700{% endif %}">
+                        {% if feed.is_dead %}Mort{% else %}Erreur ({{ feed.error_count }}/3){% endif %}
+                    </span>
+                    <a href="{{ url_for('feeds.edit', feed_id=feed.id) }}"
+                       class="text-xs text-blue-600 hover:text-blue-700">Modifier</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

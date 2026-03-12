@@ -1,0 +1,649 @@
+"""
+Tâches Celery pour la collecte RSS, la génération de synthèses et l'envoi d'emails.
+Celery Beat gère la planification automatique (cron jobs).
+"""
+import logging
+import os
+from datetime import datetime, timezone, timedelta, date
+from typing import List, Optional
+
+from celery import Celery
+from celery.schedules import crontab
+from celery.utils.log import get_task_logger
+
+logger = get_task_logger(__name__)
+
+
+def make_celery(app=None) -> Celery:
+    """
+    Crée et configure l'instance Celery.
+    Peut être utilisé avec ou sans contexte Flask.
+    """
+    redis_url = os.environ.get("REDIS_URL", "redis://:redispass@redis:6379/0")
+
+    celery_app = Celery(
+        "rss_veille",
+        broker=redis_url,
+        backend=redis_url,
+    )
+
+    celery_app.conf.update(
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        timezone=os.environ.get("TIMEZONE", "Europe/Paris"),
+        enable_utc=True,
+        task_track_started=True,
+        task_acks_late=True,
+        worker_prefetch_multiplier=1,
+        task_routes={
+            "services.scheduler_tasks.fetch_all_feeds": {"queue": "feeds"},
+            "services.scheduler_tasks.generate_daily_syntheses": {"queue": "synthesis"},
+            "services.scheduler_tasks.generate_weekly_syntheses": {"queue": "synthesis"},
+            "services.scheduler_tasks.send_daily_emails": {"queue": "emails"},
+            "services.scheduler_tasks.send_weekly_emails": {"queue": "emails"},
+        },
+    )
+
+    # ─── Planification Celery Beat ────────────────────────────────────────
+    rss_hour = int(os.environ.get("RSS_FETCH_HOUR", 6))
+    rss_minute = int(os.environ.get("RSS_FETCH_MINUTE", 0))
+    daily_hour = int(os.environ.get("DAILY_SYNTHESIS_HOUR", 7))
+    daily_minute = int(os.environ.get("DAILY_SYNTHESIS_MINUTE", 0))
+    weekly_hour = int(os.environ.get("WEEKLY_SYNTHESIS_HOUR", 8))
+    weekly_day = os.environ.get("WEEKLY_SYNTHESIS_DAY", "monday")
+
+    day_map = {
+        "monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4,
+        "friday": 5, "saturday": 6, "sunday": 0
+    }
+    weekly_day_num = day_map.get(weekly_day.lower(), 1)
+
+    celery_app.conf.beat_schedule = {
+        # Collecte RSS quotidienne (6h00 par défaut)
+        "fetch-all-feeds": {
+            "task": "services.scheduler_tasks.fetch_all_feeds",
+            "schedule": crontab(hour=rss_hour, minute=rss_minute),
+            "options": {"queue": "feeds"},
+        },
+        # Synthèses quotidiennes (7h00 par défaut)
+        "generate-daily-syntheses": {
+            "task": "services.scheduler_tasks.generate_daily_syntheses",
+            "schedule": crontab(hour=daily_hour, minute=daily_minute),
+            "options": {"queue": "synthesis"},
+        },
+        # Envoi emails quotidiens (7h30 par défaut)
+        "send-daily-emails": {
+            "task": "services.scheduler_tasks.send_daily_emails",
+            "schedule": crontab(hour=daily_hour, minute=daily_minute + 30),
+            "options": {"queue": "emails"},
+        },
+        # Synthèses hebdomadaires (lundi 8h00 par défaut)
+        "generate-weekly-syntheses": {
+            "task": "services.scheduler_tasks.generate_weekly_syntheses",
+            "schedule": crontab(hour=weekly_hour, minute=0,
+                                day_of_week=weekly_day_num),
+            "options": {"queue": "synthesis"},
+        },
+        # Envoi emails hebdomadaires (lundi 8h30 par défaut)
+        "send-weekly-emails": {
+            "task": "services.scheduler_tasks.send_weekly_emails",
+            "schedule": crontab(hour=weekly_hour, minute=30,
+                                day_of_week=weekly_day_num),
+            "options": {"queue": "emails"},
+        },
+        # Nettoyage des anciens articles (tous les dimanches à 3h00)
+        "cleanup-old-articles": {
+            "task": "services.scheduler_tasks.cleanup_old_articles",
+            "schedule": crontab(hour=3, minute=0, day_of_week=0),
+            "options": {"queue": "feeds"},
+        },
+    }
+
+    if app:
+        class ContextTask(celery_app.Task):
+            def __call__(self, *args, **kwargs):
+                with app.app_context():
+                    return self.run(*args, **kwargs)
+        celery_app.Task = ContextTask
+
+    return celery_app
+
+
+# ─── Instance Celery globale ──────────────────────────────────────────────
+celery_app = make_celery()
+
+
+def _get_flask_app():
+    """Crée un contexte Flask pour les tâches Celery."""
+    import sys
+    sys.path.insert(0, "/app")
+    from main import create_app
+    return create_app()
+
+
+# ─── Tâche : Collecte de tous les flux RSS ────────────────────────────────
+@celery_app.task(bind=True, name="services.scheduler_tasks.fetch_all_feeds",
+                 max_retries=3, default_retry_delay=300)
+def fetch_all_feeds(self):
+    """
+    Tâche principale de collecte RSS.
+    Parcourt tous les flux actifs et collecte les nouveaux articles.
+    """
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.feed import Feed
+        from models.article import Article
+        from services.rss_fetcher import fetch_feed_articles
+        from services.email_sender import send_feed_dead_notification
+
+        logger.info("Démarrage de la collecte RSS globale")
+        start_time = datetime.now(timezone.utc)
+
+        active_feeds = Feed.query.filter_by(active=True).filter(
+            Feed.status.in_([Feed.STATUS_ACTIVE, Feed.STATUS_ERROR])
+        ).all()
+
+        stats = {"feeds_processed": 0, "articles_new": 0, "feeds_error": 0, "feeds_dead": 0}
+
+        for feed in active_feeds:
+            try:
+                articles_data, error_msg = fetch_feed_articles(feed.url, feed.last_fetched)
+
+                if error_msg:
+                    # Enregistrer l'erreur
+                    became_dead = feed.record_error(error_msg,
+                                                     threshold=flask_app.config.get(
+                                                         "FEED_ERROR_THRESHOLD", 3))
+                    db.session.commit()
+                    stats["feeds_error"] += 1
+
+                    if became_dead:
+                        stats["feeds_dead"] += 1
+                        logger.warning(f"Flux marqué comme mort : {feed.url}")
+                        # Notifier l'utilisateur
+                        try:
+                            send_feed_dead_notification(
+                                feed.owner.email, feed.display_name, feed.url
+                            )
+                        except Exception as e:
+                            logger.error(f"Erreur notification flux mort : {e}")
+                    continue
+
+                # Insérer les nouveaux articles
+                new_count = 0
+                for art_data in articles_data:
+                    # Déduplication
+                    if Article.exists(art_data["url"], art_data["title"]):
+                        continue
+
+                    article = Article(
+                        feed_id=feed.id,
+                        title=art_data["title"],
+                        url=art_data["url"],
+                        content=art_data.get("content"),
+                        author=art_data.get("author", ""),
+                        published_at=art_data.get("published_at"),
+                        hash=art_data["hash"],
+                    )
+                    db.session.add(article)
+                    new_count += 1
+
+                # Mettre à jour le statut du flux
+                feed.reset_errors()
+                feed.last_fetched = datetime.now(timezone.utc)
+                feed.articles_count = (feed.articles_count or 0) + new_count
+                if new_count > 0:
+                    feed.last_article_at = datetime.now(timezone.utc)
+
+                db.session.commit()
+                stats["feeds_processed"] += 1
+                stats["articles_new"] += new_count
+
+                logger.debug(f"Flux {feed.display_name} : {new_count} nouveaux articles")
+
+            except Exception as e:
+                logger.error(f"Erreur inattendue pour le flux {feed.id}: {e}")
+                db.session.rollback()
+                stats["feeds_error"] += 1
+
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+        logger.info(
+            f"Collecte RSS terminée en {duration:.1f}s : "
+            f"{stats['feeds_processed']} flux traités, "
+            f"{stats['articles_new']} nouveaux articles, "
+            f"{stats['feeds_error']} erreurs, "
+            f"{stats['feeds_dead']} flux morts"
+        )
+        return stats
+
+
+# ─── Tâche : Génération des synthèses quotidiennes ────────────────────────
+@celery_app.task(bind=True, name="services.scheduler_tasks.generate_daily_syntheses",
+                 max_retries=2, default_retry_delay=600)
+def generate_daily_syntheses(self, target_date_str: Optional[str] = None):
+    """
+    Génère les synthèses quotidiennes pour tous les utilisateurs et catégories.
+    """
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.user import User
+        from models.category import Category
+        from models.article import Article
+        from models.feed import Feed
+        from models.synthesis import Synthesis
+        from services.ai_synthesizer import get_synthesizer
+
+        if target_date_str:
+            target_date = date.fromisoformat(target_date_str)
+        else:
+            target_date = date.today()
+
+        logger.info(f"Génération des synthèses quotidiennes pour le {target_date}")
+
+        synthesizer = get_synthesizer(flask_app)
+        stats = {"users_processed": 0, "syntheses_generated": 0, "errors": 0}
+
+        # Bornes temporelles pour la journée
+        day_start = datetime.combine(target_date, datetime.min.time()).replace(
+            tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+
+        users = User.query.filter_by(is_active=True).all()
+
+        for user in users:
+            try:
+                categories = Category.query.filter_by(
+                    user_id=user.id, active=True
+                ).all()
+
+                for category in categories:
+                    # Vérifier si une synthèse existe déjà pour aujourd'hui
+                    existing = Synthesis.query.filter_by(
+                        user_id=user.id,
+                        category_id=category.id,
+                        type=Synthesis.TYPE_DAILY,
+                    ).filter(
+                        Synthesis.generated_at >= day_start,
+                        Synthesis.generated_at < day_end,
+                    ).first()
+
+                    if existing:
+                        continue
+
+                    # Récupérer les articles du jour pour cette catégorie
+                    articles = (
+                        db.session.query(Article)
+                        .join(Article.feed)
+                        .filter(
+                            Feed.user_id == user.id,
+                            Feed.category_id == category.id,
+                            Article.fetched_at >= day_start,
+                            Article.fetched_at < day_end,
+                        )
+                        .order_by(Article.published_at.desc())
+                        .all()
+                    )
+
+                    if not articles:
+                        continue
+
+                    # Préparer les données pour le synthesizer
+                    articles_data = [
+                        {
+                            "title": a.title,
+                            "url": a.url,
+                            "content": a.content,
+                            "published_at": a.published_at,
+                            "feed_name": a.feed.display_name if a.feed else "",
+                        }
+                        for a in articles
+                    ]
+
+                    # Générer la synthèse
+                    content, tokens_used = synthesizer.generate_daily_synthesis(
+                        articles_data, category.name, target_date
+                    )
+
+                    synthesis = Synthesis(
+                        user_id=user.id,
+                        category_id=category.id,
+                        type=Synthesis.TYPE_DAILY,
+                        content=content,
+                        articles_count=len(articles),
+                        tokens_used=tokens_used,
+                        period_start=day_start,
+                        period_end=day_end,
+                    )
+                    db.session.add(synthesis)
+                    db.session.commit()
+                    stats["syntheses_generated"] += 1
+
+                    logger.debug(
+                        f"Synthèse quotidienne générée : user={user.id}, "
+                        f"cat={category.name}, articles={len(articles)}, "
+                        f"tokens={tokens_used}"
+                    )
+
+                stats["users_processed"] += 1
+
+            except Exception as e:
+                logger.error(f"Erreur synthèse quotidienne user={user.id}: {e}")
+                db.session.rollback()
+                stats["errors"] += 1
+
+        logger.info(
+            f"Synthèses quotidiennes terminées : {stats['users_processed']} utilisateurs, "
+            f"{stats['syntheses_generated']} synthèses générées, {stats['errors']} erreurs"
+        )
+        return stats
+
+
+# ─── Tâche : Génération des synthèses hebdomadaires ──────────────────────
+@celery_app.task(bind=True, name="services.scheduler_tasks.generate_weekly_syntheses",
+                 max_retries=2, default_retry_delay=600)
+def generate_weekly_syntheses(self):
+    """
+    Génère les synthèses hebdomadaires pour tous les utilisateurs et catégories.
+    """
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.user import User
+        from models.category import Category
+        from models.article import Article
+        from models.feed import Feed
+        from models.synthesis import Synthesis
+        from services.ai_synthesizer import get_synthesizer
+
+        today = date.today()
+        # Calculer le début de la semaine (lundi)
+        week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=6)
+
+        week_start_dt = datetime.combine(week_start, datetime.min.time()).replace(
+            tzinfo=timezone.utc)
+        week_end_dt = datetime.combine(week_end, datetime.max.time()).replace(
+            tzinfo=timezone.utc)
+
+        logger.info(f"Génération des synthèses hebdomadaires pour la semaine du {week_start}")
+
+        synthesizer = get_synthesizer(flask_app)
+        stats = {"users_processed": 0, "syntheses_generated": 0, "errors": 0}
+
+        users = User.query.filter_by(is_active=True).all()
+
+        for user in users:
+            try:
+                categories = Category.query.filter_by(
+                    user_id=user.id, active=True
+                ).all()
+
+                for category in categories:
+                    # Vérifier si une synthèse hebdo existe déjà pour cette semaine
+                    existing = Synthesis.query.filter_by(
+                        user_id=user.id,
+                        category_id=category.id,
+                        type=Synthesis.TYPE_WEEKLY,
+                    ).filter(
+                        Synthesis.period_start >= week_start_dt,
+                    ).first()
+
+                    if existing:
+                        continue
+
+                    # Récupérer les articles de la semaine
+                    articles = (
+                        db.session.query(Article)
+                        .join(Article.feed)
+                        .filter(
+                            Feed.user_id == user.id,
+                            Feed.category_id == category.id,
+                            Article.fetched_at >= week_start_dt,
+                            Article.fetched_at <= week_end_dt,
+                        )
+                        .order_by(Article.published_at.desc())
+                        .all()
+                    )
+
+                    if not articles:
+                        continue
+
+                    articles_data = [
+                        {
+                            "title": a.title,
+                            "url": a.url,
+                            "content": a.content,
+                            "published_at": a.published_at,
+                            "feed_name": a.feed.display_name if a.feed else "",
+                        }
+                        for a in articles
+                    ]
+
+                    # Générer la synthèse hebdomadaire
+                    result, tokens_used = synthesizer.generate_weekly_synthesis(
+                        articles_data, category.name, week_start, week_end
+                    )
+
+                    synthesis = Synthesis(
+                        user_id=user.id,
+                        category_id=category.id,
+                        type=Synthesis.TYPE_WEEKLY,
+                        content=result.get("content", ""),
+                        key_facts=result.get("key_facts", ""),
+                        trends=result.get("trends", ""),
+                        draft_linkedin=result.get("draft_linkedin", ""),
+                        articles_count=len(articles),
+                        tokens_used=tokens_used,
+                        period_start=week_start_dt,
+                        period_end=week_end_dt,
+                    )
+                    db.session.add(synthesis)
+                    db.session.commit()
+                    stats["syntheses_generated"] += 1
+
+                stats["users_processed"] += 1
+
+            except Exception as e:
+                logger.error(f"Erreur synthèse hebdomadaire user={user.id}: {e}")
+                db.session.rollback()
+                stats["errors"] += 1
+
+        logger.info(
+            f"Synthèses hebdomadaires terminées : {stats['users_processed']} utilisateurs, "
+            f"{stats['syntheses_generated']} synthèses générées"
+        )
+        return stats
+
+
+# ─── Tâche : Envoi des emails quotidiens ─────────────────────────────────
+@celery_app.task(bind=True, name="services.scheduler_tasks.send_daily_emails",
+                 max_retries=3, default_retry_delay=300)
+def send_daily_emails(self, target_date_str: Optional[str] = None):
+    """Envoie les emails de synthèse quotidienne à tous les utilisateurs abonnés."""
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.user import User
+        from models.synthesis import Synthesis
+        from models.category import Category
+        from models.subscription import Subscription
+        from services.email_sender import send_daily_synthesis_email
+
+        if target_date_str:
+            target_date = date.fromisoformat(target_date_str)
+        else:
+            target_date = date.today()
+
+        day_start = datetime.combine(target_date, datetime.min.time()).replace(
+            tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+
+        logger.info(f"Envoi des emails quotidiens pour le {target_date}")
+        stats = {"emails_sent": 0, "errors": 0}
+
+        users = User.query.filter_by(is_active=True).all()
+
+        for user in users:
+            prefs = user.preferences
+            if not prefs.get("receive_daily", True):
+                continue
+
+            # Récupérer les synthèses du jour pour cet utilisateur
+            daily_cats = prefs.get("daily_categories", [])
+
+            query = Synthesis.query.filter_by(
+                user_id=user.id, type=Synthesis.TYPE_DAILY
+            ).filter(
+                Synthesis.generated_at >= day_start,
+                Synthesis.generated_at < day_end,
+                Synthesis.email_sent == False,
+            )
+
+            if daily_cats:
+                query = query.filter(Synthesis.category_id.in_(daily_cats))
+
+            syntheses = query.all()
+
+            if not syntheses:
+                continue
+
+            # Construire la liste des synthèses par catégorie
+            syntheses_data = []
+            for s in syntheses:
+                cat_name = s.category.name if s.category else "Général"
+                syntheses_data.append({
+                    "category_name": cat_name,
+                    "content": s.content or "",
+                    "articles_count": s.articles_count,
+                })
+
+            # Destinataires : utilisateur + abonnés
+            to_emails = [user.email]
+            subs = Subscription.query.filter_by(
+                owner_user_id=user.id, receive_daily=True
+            ).all()
+            to_emails.extend([s.subscriber_email for s in subs])
+
+            try:
+                success = send_daily_synthesis_email(
+                    to_emails, user.email, syntheses_data, target_date
+                )
+                if success:
+                    # Marquer les synthèses comme envoyées
+                    for s in syntheses:
+                        s.email_sent = True
+                        s.email_sent_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    stats["emails_sent"] += 1
+                    logger.info(f"Email quotidien envoyé à {user.email} + {len(subs)} abonnés")
+                else:
+                    stats["errors"] += 1
+            except Exception as e:
+                logger.error(f"Erreur envoi email quotidien user={user.id}: {e}")
+                stats["errors"] += 1
+
+        logger.info(f"Emails quotidiens : {stats['emails_sent']} envoyés, {stats['errors']} erreurs")
+        return stats
+
+
+# ─── Tâche : Envoi des emails hebdomadaires ───────────────────────────────
+@celery_app.task(bind=True, name="services.scheduler_tasks.send_weekly_emails",
+                 max_retries=3, default_retry_delay=300)
+def send_weekly_emails(self):
+    """Envoie les emails de synthèse hebdomadaire."""
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.user import User
+        from models.synthesis import Synthesis
+        from models.subscription import Subscription
+        from services.email_sender import send_weekly_synthesis_email
+
+        today = date.today()
+        week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=6)
+        week_start_dt = datetime.combine(week_start, datetime.min.time()).replace(
+            tzinfo=timezone.utc)
+
+        logger.info(f"Envoi des emails hebdomadaires pour la semaine du {week_start}")
+        stats = {"emails_sent": 0, "errors": 0}
+
+        users = User.query.filter_by(is_active=True).all()
+
+        for user in users:
+            prefs = user.preferences
+            if not prefs.get("receive_weekly", True):
+                continue
+
+            weekly_cats = prefs.get("weekly_categories", [])
+
+            query = Synthesis.query.filter_by(
+                user_id=user.id, type=Synthesis.TYPE_WEEKLY, email_sent=False
+            ).filter(Synthesis.period_start >= week_start_dt)
+
+            if weekly_cats:
+                query = query.filter(Synthesis.category_id.in_(weekly_cats))
+
+            syntheses = query.all()
+
+            if not syntheses:
+                continue
+
+            syntheses_data = []
+            for s in syntheses:
+                cat_name = s.category.name if s.category else "Général"
+                syntheses_data.append({
+                    "category_name": cat_name,
+                    "content": s.content or "",
+                    "key_facts": s.key_facts or "",
+                    "trends": s.trends or "",
+                    "draft_linkedin": s.draft_linkedin or "",
+                    "articles_count": s.articles_count,
+                })
+
+            to_emails = [user.email]
+            subs = Subscription.query.filter_by(
+                owner_user_id=user.id, receive_weekly=True
+            ).all()
+            to_emails.extend([s.subscriber_email for s in subs])
+
+            try:
+                success = send_weekly_synthesis_email(
+                    to_emails, syntheses_data, week_start, week_end
+                )
+                if success:
+                    for s in syntheses:
+                        s.email_sent = True
+                        s.email_sent_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    stats["emails_sent"] += 1
+                else:
+                    stats["errors"] += 1
+            except Exception as e:
+                logger.error(f"Erreur envoi email hebdo user={user.id}: {e}")
+                stats["errors"] += 1
+
+        logger.info(f"Emails hebdomadaires : {stats['emails_sent']} envoyés, {stats['errors']} erreurs")
+        return stats
+
+
+# ─── Tâche : Nettoyage des anciens articles ───────────────────────────────
+@celery_app.task(name="services.scheduler_tasks.cleanup_old_articles")
+def cleanup_old_articles():
+    """Supprime les articles plus anciens que la durée de rétention configurée."""
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.article import Article
+
+        retention_days = int(os.environ.get("ARTICLES_RETENTION_DAYS", 90))
+        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
+
+        deleted = Article.query.filter(Article.fetched_at < cutoff).delete()
+        db.session.commit()
+
+        logger.info(f"Nettoyage : {deleted} articles supprimés (rétention {retention_days}j)")
+        return {"deleted": deleted}

@@ -1,0 +1,159 @@
+version: '3.9'
+
+services:
+  # ─── Base de données PostgreSQL ───────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: rss_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rssveille}
+      POSTGRES_USER: ${POSTGRES_USER:-rssuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - rss_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rssuser} -d ${POSTGRES_DB:-rssveille}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Cache / Broker Redis ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rss_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispass}
+    volumes:
+      - redis_data:/data
+    networks:
+      - rss_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redispass}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Application Web (Flask) ──────────────────────────────────────────────
+  web:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: rss_web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rssuser}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-rssveille}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redispass}@redis:6379/0
+    volumes:
+      - ./app:/app
+      - app_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rss_network
+    expose:
+      - "5000"
+    command: gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 main:app
+
+  # ─── Celery Worker ────────────────────────────────────────────────────────
+  celery_worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: rss_celery_worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rssuser}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-rssveille}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redispass}@redis:6379/0
+    volumes:
+      - ./app:/app
+      - app_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rss_network
+    command: celery -A services.scheduler_tasks.celery_app worker --loglevel=info --concurrency=4
+
+  # ─── Celery Beat (Scheduler) ──────────────────────────────────────────────
+  celery_beat:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: rss_celery_beat
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-rssuser}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-rssveille}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redispass}@redis:6379/0
+    volumes:
+      - ./app:/app
+      - app_logs:/app/logs
+      - celerybeat_schedule:/app/celerybeat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rss_network
+    command: celery -A services.scheduler_tasks.celery_app beat --loglevel=info --schedule=/app/celerybeat/celerybeat-schedule
+
+  # ─── Nginx (Reverse Proxy + SSL) ─────────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: rss_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_ssl:/etc/nginx/ssl
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - web
+    networks:
+      - rss_network
+
+  # ─── Ollama (LLM local - optionnel) ──────────────────────────────────────
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: rss_ollama
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   networks:
+  #     - rss_network
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_logs:
+  celerybeat_schedule:
+  nginx_ssl:
+  nginx_logs:
+  # ollama_data:
+
+networks:
+  rss_network:
+    driver: bridge

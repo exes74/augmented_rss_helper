@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Synthèse — {{ synthesis.period_label }}{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <div>
+        <a href="{{ url_for('syntheses.index') }}" class="text-sm text-blue-600 hover:text-blue-700">
+            ← Retour aux synthèses
+        </a>
+        <div class="flex items-center space-x-3 mt-2">
+            <span class="text-3xl">{% if synthesis.is_weekly %}📊{% else %}📰{% endif %}</span>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">
+                    {% if synthesis.category %}{{ synthesis.category.name }}{% else %}Général{% endif %}
+                </h1>
+                <div class="flex items-center space-x-2 mt-1">
+                    <span class="text-sm text-gray-500">{{ synthesis.period_label }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full
+                                 {% if synthesis.is_weekly %}bg-purple-100 text-purple-700
+                                 {% else %}bg-blue-100 text-blue-700{% endif %}">
+                        {% if synthesis.is_weekly %}Hebdomadaire{% else %}Quotidienne{% endif %}
+                    </span>
+                    <span class="text-xs text-gray-400">{{ synthesis.articles_count }} articles analysés</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Synthèse principale -->
+    {% if synthesis.content %}
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">Synthèse</h2>
+        <div class="prose text-gray-700 text-sm leading-relaxed">
+            {{ synthesis.content | replace('\n', '<br>') | safe }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Sections hebdomadaires -->
+    {% if synthesis.is_weekly %}
+
+    {% if synthesis.key_facts %}
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">📌 Faits marquants de la semaine</h2>
+        <div class="prose text-gray-700 text-sm leading-relaxed">
+            {{ synthesis.key_facts | replace('\n', '<br>') | safe }}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if synthesis.trends %}
+    <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">📈 Tendances observées</h2>
+        <div class="prose text-gray-700 text-sm leading-relaxed">
+            {{ synthesis.trends | replace('\n', '<br>') | safe }}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if synthesis.draft_linkedin %}
+    <div class="bg-blue-50 rounded-xl border border-blue-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-blue-900">💼 Draft Post LinkedIn</h2>
+            <button onclick="copyLinkedIn()"
+                    class="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white
+                           rounded-lg transition-colors">
+                📋 Copier
+            </button>
+        </div>
+        <div id="linkedin-content"
+             class="bg-white rounded-lg border border-blue-200 p-4 text-sm text-gray-700
+                    leading-relaxed whitespace-pre-wrap font-sans">{{ synthesis.draft_linkedin }}</div>
+        <p class="text-xs text-blue-600 mt-3">
+            💡 Ce draft est prêt à être copié-collé sur LinkedIn. Personnalisez-le selon votre style.
+        </p>
+    </div>
+    {% endif %}
+
+    {% endif %}
+
+    <!-- Métadonnées -->
+    <div class="bg-gray-50 rounded-xl border border-gray-200 p-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+                <div class="text-lg font-bold text-gray-900">{{ synthesis.articles_count }}</div>
+                <div class="text-xs text-gray-500">Articles analysés</div>
+            </div>
+            <div>
+                <div class="text-lg font-bold text-gray-900">{{ synthesis.tokens_used or 0 }}</div>
+                <div class="text-xs text-gray-500">Tokens IA utilisés</div>
+            </div>
+            <div>
+                <div class="text-sm font-medium text-gray-900">
+                    {{ synthesis.generated_at.strftime('%d/%m/%Y') }}
+                </div>
+                <div class="text-xs text-gray-500">Date de génération</div>
+            </div>
+            <div>
+                <div class="text-sm font-medium {% if synthesis.email_sent %}text-green-600{% else %}text-gray-400{% endif %}">
+                    {% if synthesis.email_sent %}✅ Envoyé{% else %}⏳ En attente{% endif %}
+                </div>
+                <div class="text-xs text-gray-500">Email</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyLinkedIn() {
+    const content = document.getElementById('linkedin-content').innerText;
+    navigator.clipboard.writeText(content).then(() => {
+        const btn = event.target;
+        btn.textContent = '✅ Copié !';
+        setTimeout(() => btn.textContent = '📋 Copier', 2000);
+    });
+}
+</script>
+{% endblock %}

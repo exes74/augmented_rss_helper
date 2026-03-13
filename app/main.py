@@ -52,7 +52,15 @@ def create_app(config_name: str = None) -> Flask:
 
     # ─── Création des tables (si nécessaire) ──────────────────────────────
     with app.app_context():
-        db.create_all()
+        try:
+            # Flask-SQLAlchemy moderne : passer par metadata directement
+            db.metadata.create_all(
+                bind=db.engine,
+                checkfirst=True   # ← Ne crée que si la table n'existe pas
+            )
+        except Exception as e:
+            app.logger.warning(f"Init DB ignorée (tables déjà existantes): {e}")
+    
 
     # ─── Route racine ─────────────────────────────────────────────────────
     @app.route("/")

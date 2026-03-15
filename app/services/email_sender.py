@@ -212,13 +212,13 @@ def send_daily_synthesis_email(
     Args:
         to_emails: Liste des destinataires
         user_name: Nom/email de l'utilisateur
-        syntheses_by_category: Liste de dicts {category_name, content, articles_count}
+        syntheses_by_category: Liste de dicts {category_name, content, articles_count, articles}
         synthesis_date: Date de la synthèse
     """
     date_str = synthesis_date.strftime("%A %d %B %Y")
     subject = f"Synthèse RSS du {date_str}"
 
-    # Construire le corps HTML
+    # Construire le corps HTML des synthèses
     categories_html = ""
     for item in syntheses_by_category:
         content_html = item["content"].replace("\n", "<br>")
@@ -233,12 +233,78 @@ def send_daily_synthesis_email(
         </div>
         """
 
+    # Construire la section sources
+    sources_html = ""
+    all_articles = []
+    for item in syntheses_by_category:
+        for article in item.get("articles", []):
+            all_articles.append({
+                "title": article.get("title", "Sans titre"),
+                "url": article.get("url", ""),
+                "feed_name": article.get("feed_name", ""),
+                "category": item["category_name"],
+                "published_at": article.get("published_at", ""),
+            })
+
+    if all_articles:
+        sources_rows = ""
+        for art in all_articles:
+            pub = ""
+            if art["published_at"]:
+                try:
+                    if hasattr(art["published_at"], "strftime"):
+                        pub = art["published_at"].strftime("%d/%m")
+                    else:
+                        pub = str(art["published_at"])[:10]
+                except Exception:
+                    pass
+            url = art["url"]
+            title = art["title"]
+            feed = art["feed_name"]
+            cat = art["category"]
+            sources_rows += f"""
+            <tr>
+                <td style="padding: 3px 8px; color: #6B7280;">{pub}</td>
+                <td style="padding: 3px 8px; color: #6B7280;">{cat}</td>
+                <td style="padding: 3px 8px; color: #6B7280;">{feed}</td>
+                <td style="padding: 3px 8px;">
+                    <a href="{url}" style="color: #3B82F6; text-decoration: none;">{title}</a>
+                </td>
+            </tr>"""
+
+        sources_html = f"""
+        <div style="margin-top: 30px; padding: 15px; background: #F9FAFB;
+                    border-radius: 8px; border: 1px solid #E5E7EB;">
+            <h4 style="color: #9CA3AF; font-size: 12px; margin: 0 0 10px 0;
+                       text-transform: uppercase; letter-spacing: 0.05em;">
+                Sources ({len(all_articles)} articles consultés)
+            </h4>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #E5E7EB;">
+                        <th style="padding: 3px 8px; text-align: left; color: #9CA3AF;
+                                   font-weight: normal;">Date</th>
+                        <th style="padding: 3px 8px; text-align: left; color: #9CA3AF;
+                                   font-weight: normal;">Catégorie</th>
+                        <th style="padding: 3px 8px; text-align: left; color: #9CA3AF;
+                                   font-weight: normal;">Source</th>
+                        <th style="padding: 3px 8px; text-align: left; color: #9CA3AF;
+                                   font-weight: normal;">Article</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {sources_rows}
+                </tbody>
+            </table>
+        </div>
+        """
+
     html_body = f"""
     <html><body style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;
                        color: #1F2937;">
         <div style="background: #3B82F6; padding: 20px; border-radius: 8px 8px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 22px;">
-                📰 Synthèse RSS — {date_str}
+                Synthèse RSS — {date_str}
             </h1>
         </div>
         <div style="padding: 20px; background: white; border: 1px solid #E5E7EB;
@@ -246,6 +312,7 @@ def send_daily_synthesis_email(
             <p>Bonjour,</p>
             <p>Voici votre synthèse de veille RSS du jour.</p>
             {categories_html}
+            {sources_html}
             <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 20px 0;">
             <p style="color: #9CA3AF; font-size: 12px;">
                 RSS Veille — Vous recevez cet email car vous êtes abonné aux synthèses quotidiennes.

@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+
+{% block title %}Articles — {{ feed.display_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <!-- En-tête -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-1">
+        <a href="{{ url_for('feeds.index') }}" class="hover:text-blue-600">Flux RSS</a>
+        <span>/</span>
+        <span class="text-gray-700 font-medium">{{ feed.display_name }}</span>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-900">Articles collectés</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        {{ pagination.total }} article(s) en base
+        {% if feed.category %}
+          · Catégorie : <span class="font-medium text-gray-700">{{ feed.category.name }}</span>
+        {% endif %}
+        {% if feed.last_fetched %}
+          · Dernière collecte : {{ feed.last_fetched.strftime('%d/%m/%Y %H:%M') }}
+        {% endif %}
+      </p>
+    </div>
+    <a href="{{ url_for('feeds.index') }}"
+       class="inline-flex items-center px-3 py-2 text-sm text-gray-600 bg-white border
+              border-gray-300 rounded-lg hover:bg-gray-50 transition">
+      ← Retour aux flux
+    </a>
+  </div>
+
+  <!-- Infos flux -->
+  <div class="bg-white rounded-lg shadow p-4 mb-5 flex flex-wrap gap-4 text-sm">
+    <div>
+      <span class="text-gray-500">URL :</span>
+      <a href="{{ feed.url }}" target="_blank" rel="noopener"
+         class="text-blue-600 hover:underline ml-1 break-all">{{ feed.url }}</a>
+    </div>
+    <div>
+      <span class="text-gray-500">Statut :</span>
+      {% if feed.active %}
+        <span class="ml-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">Actif</span>
+      {% else %}
+        <span class="ml-1 px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">Inactif</span>
+      {% endif %}
+    </div>
+    {% if feed.description %}
+    <div class="w-full text-gray-600 italic">{{ feed.description[:200] }}</div>
+    {% endif %}
+  </div>
+
+  <!-- Barre de recherche -->
+  <form method="GET" action="" class="mb-5">
+    <div class="flex gap-2">
+      <input type="text" name="q" value="{{ search }}"
+             placeholder="Rechercher dans les titres et contenus..."
+             class="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm
+                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+      <button type="submit"
+              class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition">
+        Rechercher
+      </button>
+      {% if search %}
+      <a href="{{ url_for('feeds.articles', feed_id=feed.id) }}"
+         class="px-4 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition">
+        Effacer
+      </a>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Liste des articles -->
+  {% if articles %}
+  <div class="space-y-3">
+    {% for article in articles %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:border-blue-200 transition">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1 min-w-0">
+          <!-- Titre + lien -->
+          <h3 class="font-semibold text-gray-900 leading-snug mb-1">
+            {% if article.url %}
+            <a href="{{ article.url }}" target="_blank" rel="noopener"
+               class="hover:text-blue-600 transition">
+              {{ article.title or '(Sans titre)' }}
+            </a>
+            {% else %}
+            {{ article.title or '(Sans titre)' }}
+            {% endif %}
+          </h3>
+
+          <!-- Métadonnées -->
+          <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-2">
+            {% if article.published_at %}
+            <span>
+              Publié le {{ article.published_at.strftime('%d/%m/%Y à %H:%M') }}
+            </span>
+            {% endif %}
+            {% if article.fetched_at %}
+            <span>
+              Collecté le {{ article.fetched_at.strftime('%d/%m/%Y à %H:%M') }}
+            </span>
+            {% endif %}
+            {% if article.author %}
+            <span>Par {{ article.author }}</span>
+            {% endif %}
+          </div>
+
+          <!-- Contenu / résumé -->
+          {% if article.content %}
+          <div class="text-sm text-gray-600 leading-relaxed">
+            <details>
+              <summary class="cursor-pointer text-blue-600 hover:text-blue-800 text-xs font-medium">
+                Voir le contenu ({{ article.content | length }} caractères)
+              </summary>
+              <div class="mt-2 p-3 bg-gray-50 rounded text-xs text-gray-700 whitespace-pre-wrap
+                          max-h-64 overflow-y-auto border border-gray-200">
+                {{ article.content }}
+              </div>
+            </details>
+          </div>
+          {% else %}
+          <p class="text-xs text-gray-400 italic">Aucun contenu stocké</p>
+          {% endif %}
+        </div>
+
+        <!-- Lien externe -->
+        {% if article.url %}
+        <a href="{{ article.url }}" target="_blank" rel="noopener"
+           class="flex-shrink-0 text-gray-400 hover:text-blue-600 transition"
+           title="Ouvrir l'article">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Pagination -->
+  {% if pagination.pages > 1 %}
+  <div class="flex items-center justify-between mt-6">
+    <p class="text-sm text-gray-500">
+      Page {{ pagination.page }} sur {{ pagination.pages }}
+      ({{ pagination.total }} articles{% if search %} filtrés{% endif %})
+    </p>
+    <div class="flex gap-1">
+      {% if pagination.has_prev %}
+      <a href="{{ url_for('feeds.articles', feed_id=feed.id, page=pagination.prev_num, q=search) }}"
+         class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+        ← Précédent
+      </a>
+      {% endif %}
+
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          {% if p == pagination.page %}
+          <span class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg">{{ p }}</span>
+          {% else %}
+          <a href="{{ url_for('feeds.articles', feed_id=feed.id, page=p, q=search) }}"
+             class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+            {{ p }}
+          </a>
+          {% endif %}
+        {% else %}
+          <span class="px-2 py-1.5 text-sm text-gray-400">…</span>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+      <a href="{{ url_for('feeds.articles', feed_id=feed.id, page=pagination.next_num, q=search) }}"
+         class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+        Suivant →
+      </a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- État vide -->
+  <div class="bg-white rounded-lg shadow p-12 text-center">
+    <div class="text-4xl mb-3">📭</div>
+    {% if search %}
+    <h3 class="text-lg font-semibold text-gray-700 mb-1">Aucun article trouvé</h3>
+    <p class="text-gray-500 text-sm">Aucun article ne correspond à « {{ search }} ».</p>
+    {% else %}
+    <h3 class="text-lg font-semibold text-gray-700 mb-1">Aucun article collecté</h3>
+    <p class="text-gray-500 text-sm mb-4">
+      Ce flux n'a pas encore été collecté, ou aucun article n'a été trouvé lors de la dernière collecte.
+    </p>
+    <p class="text-xs text-gray-400">
+      Déclenchez une collecte manuelle depuis
+      <a href="{{ url_for('admin_tasks.index') }}" class="text-blue-600 hover:underline">
+        Administration → Tâches
+      </a>.
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

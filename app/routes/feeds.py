@@ -145,6 +145,40 @@ def delete(feed_id: int):
     return redirect(url_for("feeds.index"))
 
 
+@feeds_bp.route("/<int:feed_id>/articles")
+@login_required
+def articles(feed_id: int):
+    """Affiche les articles stockés en base pour un flux RSS donné."""
+    from models.article import Article
+
+    feed = Feed.query.filter_by(id=feed_id, user_id=current_user.id).first_or_404()
+
+    page = request.args.get("page", 1, type=int)
+    per_page = 50
+    search = request.args.get("q", "").strip()
+
+    query = Article.query.filter_by(feed_id=feed.id)
+    if search:
+        query = query.filter(
+            db.or_(
+                Article.title.ilike(f"%{search}%"),
+                Article.content.ilike(f"%{search}%"),
+            )
+        )
+
+    pagination = query.order_by(Article.published_at.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    return render_template(
+        "feeds/articles.html",
+        feed=feed,
+        articles=pagination.items,
+        pagination=pagination,
+        search=search,
+    )
+
+
 @feeds_bp.route("/validate", methods=["POST"])
 @login_required
 def validate():

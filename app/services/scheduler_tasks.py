@@ -515,10 +515,37 @@ def send_daily_emails(self, target_date_str: Optional[str] = None):
             syntheses_data = []
             for s in syntheses:
                 cat_name = s.category.name if s.category else "Général"
+
+                # Récupérer les articles bruts pour la section sources
+                from models.article import Article
+                from models.feed import Feed
+                articles_raw = (
+                    db.session.query(Article)
+                    .join(Article.feed)
+                    .filter(
+                        Feed.user_id == user.id,
+                        Feed.category_id == s.category_id,
+                        Article.fetched_at >= day_start,
+                        Article.fetched_at < day_end,
+                    )
+                    .order_by(Article.published_at.desc())
+                    .all()
+                )
+                articles_list = [
+                    {
+                        "title": a.title,
+                        "url": a.url,
+                        "feed_name": a.feed.display_name if a.feed else "",
+                        "published_at": a.published_at,
+                    }
+                    for a in articles_raw
+                ]
+
                 syntheses_data.append({
                     "category_name": cat_name,
                     "content": s.content or "",
                     "articles_count": s.articles_count,
+                    "articles": articles_list,
                 })
 
             to_emails = [user.email]

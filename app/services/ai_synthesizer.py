@@ -43,20 +43,22 @@ class AISynthesizer:
             return "Aucun article collecté pour cette catégorie aujourd'hui.", 0
 
         date_str = (target_date or date.today()).strftime("%d/%m/%Y")
-        articles_text = self._format_articles_for_prompt(articles, max_articles=20)
+        # Tous les articles, sans limite de nombre ni troncature du contenu
+        articles_text = self._format_articles_for_prompt(articles, max_articles=None, truncate_content=False)
 
         prompt = f"""Tu es un expert en veille informationnelle. Analyse les articles suivants collectés le {date_str} dans la catégorie "{category_name}" et génère une synthèse structurée.
 
-ARTICLES DU JOUR :
+ARTICLES DU JOUR ({len(articles)} articles) :
 {articles_text}
 
 CONSIGNES :
-- Synthèse de 200 à 300 mots maximum
+- Synthèse de 400 à 600 mots
 - Style informatif et professionnel
 - Extraire les 3 à 5 tendances clés observées
 - Citer les sources (noms des sites/médias)
 - Utiliser des bullet points pour la lisibilité
 - Langue : français
+- Prendre en compte TOUS les articles fournis
 
 FORMAT ATTENDU :
 ## Synthèse du {date_str} — {category_name}
@@ -73,7 +75,7 @@ FORMAT ATTENDU :
 • [Tendance 2]
 """
 
-        return self._call_llm(prompt, max_tokens=800)
+        return self._call_llm(prompt, max_tokens=2000)
 
     def generate_weekly_synthesis(
         self,
@@ -151,10 +153,23 @@ Génère une réponse structurée avec les 4 sections suivantes, séparées par 
         result = self._parse_weekly_response(content)
         return result, tokens
 
-    def _format_articles_for_prompt(self, articles: List[Dict], max_articles: int = 30) -> str:
-        """Formate les articles pour l'inclusion dans un prompt."""
-        # Limiter le nombre d'articles
-        articles = articles[:max_articles]
+    def _format_articles_for_prompt(
+        self,
+        articles: List[Dict],
+        max_articles: Optional[int] = None,
+        truncate_content: bool = True,
+        content_max_chars: int = 500
+    ) -> str:
+        """Formate les articles pour l'inclusion dans un prompt.
+
+        Args:
+            articles: Liste des articles
+            max_articles: Nombre maximum d'articles (None = tous)
+            truncate_content: Si False, inclut le contenu complet
+            content_max_chars: Nombre de caractères max par article si truncate_content=True
+        """
+        if max_articles is not None:
+            articles = articles[:max_articles]
 
         lines = []
         for i, article in enumerate(articles, 1):
@@ -171,9 +186,10 @@ Génère une réponse structurée avec les 4 sections suivantes, séparées par 
             if article.get("feed_name"):
                 lines.append(f"   Source : {article['feed_name']}")
             if article.get("content"):
-                # Tronquer le contenu
-                content = article["content"][:500]
-                lines.append(f"   Résumé : {content}")
+                content = article["content"]
+                if truncate_content:
+                    content = content[:content_max_chars]
+                lines.append(f"   Contenu : {content}")
             lines.append(f"   URL : {article.get('url', '')}")
             lines.append("")
 

@@ -12,6 +12,77 @@ from datetime import date
 logger = logging.getLogger(__name__)
 
 
+def _markdown_to_html(text: str) -> str:
+    """
+    Convertit le Markdown généré par le LLM en HTML propre pour les emails.
+    Utilise la librairie `markdown` si disponible, sinon un fallback regex léger.
+    """
+    try:
+        import markdown as md_lib
+        # Extensions : tables, nl2br (newlines -> <br>), sane_lists
+        html = md_lib.markdown(
+            text,
+            extensions=["nl2br", "sane_lists"],
+        )
+        return html
+    except ImportError:
+        pass
+
+    # Fallback manuel si la lib n'est pas disponible
+    import re
+    lines = text.split("\n")
+    result = []
+    in_ul = False
+
+    for line in lines:
+        # Titres ## et ###
+        if line.startswith("### "):
+            if in_ul:
+                result.append("</ul>"); in_ul = False
+            result.append(f"<h4 style='color:#1F2937;margin:12px 0 4px'>{line[4:].strip()}</h4>")
+            continue
+        if line.startswith("## "):
+            if in_ul:
+                result.append("</ul>"); in_ul = False
+            result.append(f"<h3 style='color:#1F2937;margin:14px 0 6px'>{line[3:].strip()}</h3>")
+            continue
+        if line.startswith("# "):
+            if in_ul:
+                result.append("</ul>"); in_ul = False
+            result.append(f"<h2 style='color:#1F2937;margin:16px 0 8px'>{line[2:].strip()}</h2>")
+            continue
+
+        # Listes (• ou - ou *)
+        if re.match(r'^[\u2022\-\*] ', line):
+            if not in_ul:
+                result.append("<ul style='margin:6px 0;padding-left:20px'>")
+                in_ul = True
+            item_text = line[2:].strip()
+            # Gras inline **texte**
+            item_text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', item_text)
+            result.append(f"<li style='margin-bottom:4px'>{item_text}</li>")
+            continue
+
+        # Ligne vide
+        if not line.strip():
+            if in_ul:
+                result.append("</ul>"); in_ul = False
+            result.append("")
+            continue
+
+        # Paragraphe normal
+        if in_ul:
+            result.append("</ul>"); in_ul = False
+        # Gras inline **texte**
+        line = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+        result.append(f"<p style='margin:6px 0'>{line}</p>")
+
+    if in_ul:
+        result.append("</ul>")
+
+    return "\n".join(result)
+
+
 def _get_config():
     """Récupère la configuration email depuis Flask."""
     from flask import current_app
@@ -221,7 +292,8 @@ def send_daily_synthesis_email(
     # Construire le corps HTML des synthèses
     categories_html = ""
     for item in syntheses_by_category:
-        content_html = item["content"].replace("\n", "<br>")
+        # Convertir le Markdown généré par le LLM en HTML propre
+        content_html = _markdown_to_html(item["content"])
         categories_html += f"""
         <div style="margin-bottom: 30px; padding: 20px; background: #F9FAFB;
                     border-radius: 8px; border-left: 4px solid #3B82F6;">
@@ -229,7 +301,7 @@ def send_daily_synthesis_email(
             <p style="color: #6B7280; font-size: 13px; margin-bottom: 15px;">
                 {item.get('articles_count', 0)} article(s) analysé(s)
             </p>
-            <div style="color: #374151; line-height: 1.6;">{content_html}</div>
+            <div style="color: #374151; line-height: 1.6; font-size: 14px;">{content_html}</div>
         </div>
         """
 

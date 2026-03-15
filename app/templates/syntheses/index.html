@@ -70,10 +70,21 @@
                         {% endif %}
                     </div>
                 </div>
-                <div class="text-right text-xs text-gray-400 ml-4 flex-shrink-0">
-                    <div>{{ synthesis.articles_count }} articles</div>
+                <div class="text-right text-xs text-gray-400 ml-4 flex-shrink-0 space-y-1">
+                    {% if synthesis.generated_at %}
+                    <div class="font-medium text-gray-500">
+                        {{ synthesis.generated_at.strftime('%d/%m/%Y') }}
+                    </div>
+                    <div class="text-gray-400">
+                        {{ synthesis.generated_at.strftime('%H:%M') }}
+                    </div>
+                    {% endif %}
+                    <div class="text-gray-400">{{ synthesis.articles_count }} articles</div>
+                    {% if synthesis.tokens_used %}
+                    <div class="text-gray-300">{{ synthesis.tokens_used }} tokens</div>
+                    {% endif %}
                     {% if synthesis.is_weekly and synthesis.draft_linkedin %}
-                    <div class="mt-1 text-blue-600">💼 LinkedIn</div>
+                    <div class="text-blue-500">⚡ Cyber Brief</div>
                     {% endif %}
                 </div>
             </div>

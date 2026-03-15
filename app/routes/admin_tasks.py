@@ -157,6 +157,31 @@ def run_send_daily_emails():
     return redirect(url_for("admin_tasks.index"))
 
 
+@admin_tasks_bp.route("/run/send-weekly-emails", methods=["POST"])
+@login_required
+@admin_required
+def run_send_weekly_emails():
+    """Déclenche manuellement l'envoi des emails hebdomadaires.
+    force=True par défaut : renvoie même si l'email a déjà été envoyé.
+    """
+    force = request.form.get("force", "true").lower() != "false"
+    try:
+        from services.scheduler_tasks import send_weekly_emails
+        task = send_weekly_emails.delay(force=force)
+        force_label = " (renvoi forcé)" if force else ""
+        flash(
+            f"Envoi des emails hebdomadaires lancé{force_label} (task_id: {task.id}).",
+            "success"
+        )
+        logger.info(
+            f"Emails hebdomadaires déclenchés par {current_user.email}, force={force}"
+        )
+    except Exception as e:
+        flash(f"Erreur lors de l'envoi des emails hebdomadaires : {str(e)}", "danger")
+        logger.error(f"Erreur déclenchement emails hebdomadaires : {e}", exc_info=True)
+    return redirect(url_for("admin_tasks.index"))
+
+
 @admin_tasks_bp.route("/status")
 @login_required
 @admin_required

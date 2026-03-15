@@ -617,8 +617,10 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
 # ─── Tâche : Envoi des emails hebdomadaires ───────────────────────────────
 @celery_app.task(bind=True, name="services.scheduler_tasks.send_weekly_emails",
                  max_retries=3, default_retry_delay=300)
-def send_weekly_emails(self):
-    """Envoie les emails de synthèse hebdomadaire."""
+def send_weekly_emails(self, force: bool = False):
+    """Envoie les emails de synthèse hebdomadaire.
+    Si force=True, renvoie même si l'email a déjà été envoyé (email_sent=True).
+    """
     flask_app = _get_flask_app()
     with flask_app.app_context():
         from main import db
@@ -628,12 +630,18 @@ def send_weekly_emails(self):
         from services.email_sender import send_weekly_synthesis_email
 
         today = date.today()
-        week_start = today - timedelta(days=today.weekday())
-        week_end = week_start + timedelta(days=6)
-        week_start_dt = datetime.combine(week_start, datetime.min.time()).replace(
+        # Référence : semaine précédente (cohérent avec generate_weekly_syntheses)
+        last_monday = today - timedelta(days=today.weekday() + 7)
+        last_sunday = last_monday + timedelta(days=6)
+        week_start_dt = datetime.combine(last_monday, datetime.min.time()).replace(
+            tzinfo=timezone.utc)
+        week_end_dt = datetime.combine(last_sunday, datetime.max.time()).replace(
             tzinfo=timezone.utc)
 
-        logger.info(f"Envoi des emails hebdomadaires pour la semaine du {week_start}")
+        logger.info(
+            f"Envoi des emails hebdomadaires pour la semaine du {last_monday} "
+            f"au {last_sunday} (force={force})"
+        )
         stats = {"emails_sent": 0, "errors": 0}
 
         users = User.query.filter_by(is_active=True).all()
@@ -646,8 +654,14 @@ def send_weekly_emails(self):
             weekly_cats = prefs.get("weekly_categories", [])
 
             query = Synthesis.query.filter_by(
-                user_id=user.id, type=Synthesis.TYPE_WEEKLY, email_sent=False
-            ).filter(Synthesis.period_start >= week_start_dt)
+                user_id=user.id, type=Synthesis.TYPE_WEEKLY
+            ).filter(
+                Synthesis.period_start >= week_start_dt,
+                Synthesis.period_start <= week_end_dt,
+            )
+            # En mode normal, ne renvoyer que les emails non encore envoyés
+            if not force:
+                query = query.filter(Synthesis.email_sent == False)
 
             if weekly_cats:
                 query = query.filter(Synthesis.category_id.in_(weekly_cats))
@@ -677,7 +691,7 @@ def send_weekly_emails(self):
 
             try:
                 success = send_weekly_synthesis_email(
-                    to_emails, syntheses_data, week_start, week_end
+                    to_emails, syntheses_data, last_monday, last_sunday
                 )
                 if success:
                     for s in syntheses:

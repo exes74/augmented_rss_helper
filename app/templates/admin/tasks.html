@@ -134,7 +134,7 @@
       </form>
     </div>
 
-    <!-- Envoi emails -->
+    <!-- Envoi emails quotidiens -->
     <div class="bg-white rounded-lg shadow p-5">
       <h3 class="font-semibold text-gray-800 mb-2">📧 Envoi emails quotidiens</h3>
       <p class="text-sm text-gray-500 mb-4">
@@ -152,6 +152,27 @@
         </button>
       </form>
     </div>
+
+    <!-- Envoi emails hebdomadaires -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h3 class="font-semibold text-gray-800 mb-2">📨 Envoi emails hebdomadaires</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Envoie la super-synthèse de la semaine précédente avec faits marquants,
+        tendances et Cyber Brief LinkedIn. Le renvoi est forcé par défaut.
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_send_weekly_emails') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="force" value="true">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs text-gray-500">ℹ️ Concerne la semaine précédente (lun→dim). Le renvoi est forcé même si l’email a déjà été envoyé.</span>
+        </div>
+        <button type="submit"
+          class="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Envoyer les emails hebdomadaires
+        </button>
+      </form>
+    </div>
+
   </div>
 
   <!-- Derniers flux collectés -->

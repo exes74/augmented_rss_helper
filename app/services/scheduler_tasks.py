@@ -369,9 +369,11 @@ def generate_weekly_syntheses(self, force: bool = False):
         from services.ai_synthesizer import get_synthesizer
 
         today = date.today()
-        # Fenêtre glissante : les 7 derniers jours (J-7 → hier inclus)
-        period_end = today - timedelta(days=1)          # hier
-        period_start = period_end - timedelta(days=6)   # il y a 7 jours
+        # Fenêtre glissante : les 7 derniers jours inclus aujourd'hui (J-6 → aujourd'hui)
+        # On inclut aujourd'hui pour que les synthèses du jour soient prises en compte
+        # lors d'un déclenchement manuel ou automatique le mercredi matin
+        period_end = today
+        period_start = period_end - timedelta(days=6)   # il y a 6 jours (= 7 jours au total)
 
         week_start_dt = datetime.combine(period_start, datetime.min.time()).replace(
             tzinfo=timezone.utc)
@@ -635,9 +637,9 @@ def send_weekly_emails(self, force: bool = False):
         from services.email_sender import send_weekly_synthesis_email
 
         today = date.today()
-        # Fenêtre glissante : les 7 derniers jours (J-7 → hier)
+        # Fenêtre glissante : J-6 → aujourd'hui (7 jours au total, aujourd'hui inclus)
         # Cohérent avec generate_weekly_syntheses
-        period_end = today - timedelta(days=1)
+        period_end = today
         period_start = period_end - timedelta(days=6)
         week_start_dt = datetime.combine(period_start, datetime.min.time()).replace(
             tzinfo=timezone.utc)

@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Gestion des tâches — RSS Veille{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-900">⚙️ Gestion des tâches</h1>
+    <p class="text-gray-500 mt-1">Déclenchez manuellement la collecte RSS, les synthèses et les emails.</p>
+  </div>
+
+  <!-- État Celery / Redis -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h2 class="text-lg font-semibold text-gray-800 mb-3">État des services</h2>
+    <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div class="flex items-center gap-2">
+        {% if celery_status.celery_reachable %}
+          <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+          <span class="text-sm text-green-700 font-medium">Celery Worker actif</span>
+        {% else %}
+          <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+          <span class="text-sm text-red-700 font-medium">Celery Worker injoignable</span>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-2">
+        {% if celery_status.redis_reachable %}
+          <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+          <span class="text-sm text-green-700 font-medium">Redis OK</span>
+        {% else %}
+          <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
+          <span class="text-sm text-red-700 font-medium">Redis injoignable</span>
+        {% endif %}
+      </div>
+      {% if celery_status.active_workers %}
+      <div class="col-span-2 text-sm text-gray-600">
+        Workers : {{ celery_status.active_workers | join(", ") }}
+      </div>
+      {% endif %}
+    </div>
+    {% if celery_status.error %}
+    <div class="mt-3 p-3 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+      <strong>Erreur :</strong> {{ celery_status.error }}
+    </div>
+    {% endif %}
+    {% if not celery_status.celery_reachable %}
+    <div class="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">
+      <strong>⚠️ Le worker Celery ne répond pas.</strong> Vérifiez que le container
+      <code>rss_celery_worker</code> est bien démarré :<br>
+      <code class="bg-yellow-100 px-1 rounded">podman-compose logs rss_celery_worker</code>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Statistiques -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+      <div class="text-2xl font-bold text-blue-600">{{ stats.active_feeds }}</div>
+      <div class="text-sm text-gray-500">Flux actifs</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+      <div class="text-2xl font-bold text-green-600">{{ stats.total_articles }}</div>
+      <div class="text-sm text-gray-500">Articles collectés</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+      <div class="text-2xl font-bold text-purple-600">{{ stats.total_syntheses }}</div>
+      <div class="text-sm text-gray-500">Synthèses générées</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center">
+      <div class="text-2xl font-bold text-gray-600">{{ stats.total_feeds }}</div>
+      <div class="text-sm text-gray-500">Flux total</div>
+    </div>
+  </div>
+
+  <!-- Actions manuelles -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+
+    <!-- Collecte RSS -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h3 class="font-semibold text-gray-800 mb-2">📡 Collecte RSS</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Déclenche immédiatement la collecte de tous les flux RSS actifs.
+        Normalement exécutée toutes les heures automatiquement.
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_fetch_rss') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+          class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Lancer la collecte RSS maintenant
+        </button>
+      </form>
+    </div>
+
+    <!-- Synthèses quotidiennes -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h3 class="font-semibold text-gray-800 mb-2">📝 Synthèses quotidiennes</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Génère les synthèses IA pour tous les utilisateurs et catégories.
+        Choisissez la date cible (par défaut : aujourd'hui).
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_daily_synthesis') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="date" name="target_date"
+          value="{{ today }}"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-purple-500">
+        <button type="submit"
+          class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Générer les synthèses quotidiennes
+        </button>
+      </form>
+    </div>
+
+    <!-- Synthèses hebdomadaires -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h3 class="font-semibold text-gray-800 mb-2">📊 Synthèses hebdomadaires</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Génère les synthèses hebdomadaires avec faits marquants, tendances
+        et draft post LinkedIn pour la semaine en cours.
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_weekly_synthesis') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit"
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Générer les synthèses hebdomadaires
+        </button>
+      </form>
+    </div>
+
+    <!-- Envoi emails -->
+    <div class="bg-white rounded-lg shadow p-5">
+      <h3 class="font-semibold text-gray-800 mb-2">📧 Envoi emails quotidiens</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Envoie les emails de synthèse quotidienne aux utilisateurs abonnés.
+        Nécessite que les synthèses aient été générées au préalable.
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_send_daily_emails') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="date" name="target_date"
+          value="{{ today }}"
+          class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-green-500">
+        <button type="submit"
+          class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Envoyer les emails quotidiens
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Derniers flux collectés -->
+  {% if recent_feeds %}
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h3 class="font-semibold text-gray-800 mb-3">Dernières collectes RSS</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 border-b">
+            <th class="pb-2">Flux</th>
+            <th class="pb-2">Statut</th>
+            <th class="pb-2">Dernière collecte</th>
+            <th class="pb-2">Articles</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for feed in recent_feeds %}
+          <tr class="border-b border-gray-50 hover:bg-gray-50">
+            <td class="py-2 font-medium text-gray-800 max-w-xs truncate">{{ feed.display_name }}</td>
+            <td class="py-2">
+              {% if feed.status == 'active' %}
+                <span class="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">actif</span>
+              {% elif feed.status == 'error' %}
+                <span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs">erreur</span>
+              {% elif feed.status == 'dead' %}
+                <span class="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">mort</span>
+              {% else %}
+                <span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs">{{ feed.status }}</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-gray-500">
+              {% if feed.last_fetched %}
+                {{ feed.last_fetched.strftime('%d/%m/%Y %H:%M') }}
+              {% else %}
+                Jamais
+              {% endif %}
+            </td>
+            <td class="py-2 text-gray-600">{{ feed.articles_count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Dernières synthèses -->
+  {% if recent_syntheses %}
+  <div class="bg-white rounded-lg shadow p-5">
+    <h3 class="font-semibold text-gray-800 mb-3">Dernières synthèses générées</h3>
+    <div class="space-y-2">
+      {% for s in recent_syntheses %}
+      <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div>
+          <span class="font-medium text-gray-800">
+            {% if s.type == 'daily' %}📝{% else %}📊{% endif %}
+            {{ s.category.name if s.category else 'Général' }}
+          </span>
+          <span class="text-xs text-gray-500 ml-2">{{ s.type }}</span>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-gray-600">{{ s.generated_at.strftime('%d/%m/%Y %H:%M') }}</div>
+          <div class="text-xs text-gray-400">{{ s.articles_count }} articles · {{ s.tokens_used }} tokens</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

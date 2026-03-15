@@ -79,6 +79,7 @@ def register_blueprints(app: Flask) -> None:
     from routes.syntheses import syntheses_bp
     from routes.settings import settings_bp
     from routes.admin import admin_bp
+    from routes.admin_tasks import admin_tasks_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -87,6 +88,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(syntheses_bp)
     app.register_blueprint(settings_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(admin_tasks_bp)
 
 
 def setup_logging(app: Flask) -> None:

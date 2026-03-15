@@ -84,7 +84,8 @@ services:
         condition: service_healthy
     networks:
       - rss_network
-    command: celery -A services.scheduler_tasks.celery_app worker --loglevel=info --concurrency=4
+    working_dir: /app
+    command: celery -A services.scheduler_tasks.celery_app worker --loglevel=info --concurrency=2
 
   # ─── Celery Beat (Scheduler) ──────────────────────────────────────────────
   celery_beat:
@@ -108,7 +109,8 @@ services:
         condition: service_healthy
     networks:
       - rss_network
-    command: celery -A services.scheduler_tasks.celery_app beat --loglevel=info --schedule=/app/celerybeat/celerybeat-schedule
+    working_dir: /app
+    command: celery -A services.scheduler_tasks.celery_app beat --loglevel=info --scheduler celery.beat.PersistentScheduler --schedule=/app/celerybeat/celerybeat-schedule
 
   # ─── Nginx (Reverse Proxy + SSL) ─────────────────────────────────────────
   nginx:

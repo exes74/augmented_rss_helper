@@ -53,7 +53,7 @@
   </div>
 
   <!-- Statistiques -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-4 text-center">
       <div class="text-2xl font-bold text-blue-600">{{ stats.active_feeds }}</div>
       <div class="text-sm text-gray-500">Flux actifs</div>
@@ -61,6 +61,11 @@
     <div class="bg-white rounded-lg shadow p-4 text-center">
       <div class="text-2xl font-bold text-green-600">{{ stats.total_articles }}</div>
       <div class="text-sm text-gray-500">Articles collectés</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4 text-center border-l-2 border-amber-400">
+      <div class="text-2xl font-bold text-amber-600">{{ stats.enriched_articles }}</div>
+      <div class="text-sm text-gray-500">Articles enrichis</div>
+      <div class="text-xs text-amber-500 mt-1">{{ stats.enriched_pct }}% du total</div>
     </div>
     <div class="bg-white rounded-lg shadow p-4 text-center">
       <div class="text-2xl font-bold text-purple-600">{{ stats.total_syntheses }}</div>

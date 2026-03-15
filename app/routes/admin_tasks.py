@@ -36,15 +36,24 @@ def index():
     from models.synthesis import Synthesis
 
     # Statistiques rapides
+    total_articles = (
+        Article.query
+        .join(Article.feed)
+        .filter(Feed.user_id == current_user.id)
+        .count()
+    )
+    enriched_articles = (
+        Article.query
+        .join(Article.feed)
+        .filter(Feed.user_id == current_user.id, Article.enriched == True)
+        .count()
+    )
     stats = {
         "total_feeds": Feed.query.filter_by(user_id=current_user.id).count(),
         "active_feeds": Feed.query.filter_by(user_id=current_user.id, active=True).count(),
-        "total_articles": (
-            Article.query
-            .join(Article.feed)
-            .filter(Feed.user_id == current_user.id)
-            .count()
-        ),
+        "total_articles": total_articles,
+        "enriched_articles": enriched_articles,
+        "enriched_pct": round(enriched_articles * 100 / total_articles) if total_articles else 0,
         "total_syntheses": Synthesis.query.filter_by(user_id=current_user.id).count(),
     }
 

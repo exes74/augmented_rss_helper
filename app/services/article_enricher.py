@@ -15,6 +15,8 @@ Variables d'environnement :
                                   en secondes (défaut: 2)
     ARTICLE_ENRICH_MAX_WORKERS : nombre de threads parallèles (défaut: 5)
     ARTICLE_ENRICH_MAX_AGE_DAYS: n'enrichit que les articles de moins de N jours (défaut: 7)
+    ARTICLE_ENRICH_USER_AGENT  : User-Agent HTTP utilisé pour visiter les articles
+                                  (défaut: Firefox/128.0 Linux)
 """
 import logging
 import os
@@ -33,9 +35,11 @@ RATE_LIMIT_DELAY = float(os.environ.get("ARTICLE_ENRICH_RATE_LIMIT", 2.0))
 MAX_WORKERS = int(os.environ.get("ARTICLE_ENRICH_MAX_WORKERS", 5))
 MAX_AGE_DAYS = int(os.environ.get("ARTICLE_ENRICH_MAX_AGE_DAYS", 7))
 
-USER_AGENT = (
-    "Mozilla/5.0 (compatible; RSS-Veille/1.0; "
-    "+https://github.com/rss-veille) Googlebot/2.1"
+# User-Agent configurable via .env
+# Par défaut : navigateur Firefox standard, discret et légal
+USER_AGENT = os.environ.get(
+    "ARTICLE_ENRICH_USER_AGENT",
+    "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"
 )
 
 # ─── Rate limiter par domaine ─────────────────────────────────────────────────
@@ -221,6 +225,7 @@ def enrich_articles_batch(app, max_articles: int = 200) -> Dict:
                         article = Article.query.get(article_id)
                         if article:
                             article.content = new_content[:50000]  # cap à 50k chars
+                            article.enriched = True
                             db.session.commit()
                             stats["enriched"] += 1
                             logger.debug(

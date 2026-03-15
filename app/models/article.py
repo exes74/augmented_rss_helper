@@ -22,6 +22,8 @@ class Article(db.Model):
                            nullable=False, index=True)
     hash = db.Column(db.String(64), nullable=False, unique=True, index=True)
     is_read = db.Column(db.Boolean, default=False, nullable=False)
+    # True si le contenu a été enrichi via newspaper3k (full-text scraping)
+    enriched = db.Column(db.Boolean, default=False, nullable=False, index=True)
 
     # ─── Contrainte d'unicité ─────────────────────────────────────────────
     __table_args__ = (

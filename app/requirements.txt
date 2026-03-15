@@ -23,9 +23,15 @@ feedparser==6.0.11
 requests==2.32.3
 lxml==5.2.2
 
+# ─── Enrichissement full-text ─────────────────────────────────────────────
+# newspaper3k : extraction du contenu complet des articles depuis leur URL
+# lxml[html_clean] : requis par newspaper3k pour le parsing HTML
+newspaper3k==0.2.8
+lxml[html_clean]>=5.2.2
+pillow>=10.3.0
+
 # ─── IA / LLM ─────────────────────────────────────────────────────────────
 # openai>=1.56.1 corrige le bug 'proxies' avec httpx>=0.28
-# Alternative : openai>=1.56.1 + httpx>=0.28 (les deux fonctionnent ensemble)
 openai>=1.56.1
 httpx>=0.28.0
 tiktoken==0.7.0

@@ -154,6 +154,32 @@
       </form>
     </div>
 
+    <!-- Enrichissement full-text -->
+    <div class="bg-white rounded-lg shadow p-5 border-l-4 border-amber-500">
+      <h3 class="font-semibold text-gray-800 mb-2">🔍 Enrichissement full-text des articles</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Visite les articles dont le contenu est trop court (&lt; 500 caractères) et extrait
+        le texte complet depuis la page source via <strong>newspaper3k</strong>.
+        Exécuté automatiquement 30 min après chaque collecte RSS.
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_enrich_articles') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex items-center gap-2 mb-3">
+          <label class="text-xs text-gray-600 font-medium">Articles max :</label>
+          <input type="number" name="max_articles" value="200" min="10" max="1000"
+            class="w-24 border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-amber-500">
+          <span class="text-xs text-gray-400">(par exécution)</span>
+        </div>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs text-gray-500">ℹ️ Rate limiting : 2s entre chaque requête par domaine. Les sites bloqués (Cloudflare, paywall) sont ignorés sans régression.</span>
+        </div>
+        <button type="submit"
+          class="w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Enrichir les articles courts maintenant
+        </button>
+      </form>
+    </div>
+
     <!-- Envoi emails hebdomadaires -->
     <div class="bg-white rounded-lg shadow p-5">
       <h3 class="font-semibold text-gray-800 mb-2">📨 Envoi emails hebdomadaires</h3>

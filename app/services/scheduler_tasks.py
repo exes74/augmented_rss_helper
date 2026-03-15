@@ -100,6 +100,12 @@ def make_celery(flask_app=None) -> Celery:
             "task": "services.scheduler_tasks.cleanup_old_articles",
             "schedule": crontab(hour=3, minute=0, day_of_week=0),
         },
+        # Enrichissement des articles courts : 30 min après chaque collecte RSS
+        # Configurable via ARTICLE_ENRICH_MINUTE (défaut: 30 min après rss_minute)
+        "enrich-articles": {
+            "task": "services.scheduler_tasks.enrich_articles",
+            "schedule": crontab(minute=(rss_minute + 30) % 60),
+        },
     }
 
     # CORRECTION 3 : Intégration du contexte Flask dans toutes les tâches
@@ -220,6 +226,41 @@ def fetch_all_feeds(self):
             f"{stats['feeds_dead']} flux morts"
         )
         return stats
+
+
+# ─── Tâche : Enrichissement des articles courts ────────────────────────
+@celery_app.task(bind=True, name="services.scheduler_tasks.enrich_articles",
+                 max_retries=1, default_retry_delay=300)
+def enrich_articles(self, max_articles: int = 200):
+    """
+    Enrichit les articles dont le contenu est trop court en visitant leur URL
+    et en extrayant le contenu complet via newspaper3k.
+
+    Planifié automatiquement 30 min après chaque collecte RSS.
+    Peut aussi être déclenché manuellement depuis /admin/tasks.
+
+    Args:
+        max_articles : nombre maximum d'articles à traiter par exécution
+    """
+    flask_app = _get_flask_app()
+    try:
+        from services.article_enricher import enrich_articles_batch
+        logger.info(
+            f"Démarrage de l'enrichissement des articles "
+            f"(max={max_articles}, seuil={os.environ.get('ARTICLE_MIN_CONTENT_LENGTH', 500)} chars)"
+        )
+        stats = enrich_articles_batch(flask_app, max_articles=max_articles)
+        logger.info(
+            f"Enrichissement terminé : "
+            f"{stats['enriched']} enrichis, "
+            f"{stats['skipped']} ignorés, "
+            f"{stats['failed']} échecs "
+            f"sur {stats['total_processed']} traités"
+        )
+        return stats
+    except Exception as e:
+        logger.error(f"Erreur lors de l'enrichissement des articles : {e}")
+        raise self.retry(exc=e)
 
 
 # ─── Tâche : Génération des synthèses quotidiennes ────────────────────────

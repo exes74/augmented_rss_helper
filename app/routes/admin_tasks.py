@@ -182,6 +182,30 @@ def run_send_weekly_emails():
     return redirect(url_for("admin_tasks.index"))
 
 
+@admin_tasks_bp.route("/run/enrich-articles", methods=["POST"])
+@login_required
+@admin_required
+def run_enrich_articles():
+    """Déclenche manuellement l'enrichissement full-text des articles courts."""
+    max_articles = int(request.form.get("max_articles", 200))
+    try:
+        from services.scheduler_tasks import enrich_articles
+        task = enrich_articles.delay(max_articles=max_articles)
+        flash(
+            f"Enrichissement des articles lancé (max={max_articles}, task_id: {task.id}). "
+            f"Les articles courts vont être enrichis en arrière-plan.",
+            "success"
+        )
+        logger.info(
+            f"Enrichissement articles déclenché par {current_user.email}, "
+            f"max_articles={max_articles}"
+        )
+    except Exception as e:
+        flash(f"Erreur lors du lancement de l'enrichissement : {str(e)}", "danger")
+        logger.error(f"Erreur déclenchement enrichissement articles : {e}", exc_info=True)
+    return redirect(url_for("admin_tasks.index"))
+
+
 @admin_tasks_bp.route("/status")
 @login_required
 @admin_required

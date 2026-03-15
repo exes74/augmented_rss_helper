@@ -232,8 +232,19 @@ Génère une réponse structurée avec les 4 sections suivantes, séparées par 
 
     def _call_openai(self, prompt: str, max_tokens: int = 1000) -> Tuple[str, int]:
         """Appelle l'API OpenAI."""
+        # Vérification préalable de la clé API
+        if not self.openai_api_key:
+            logger.error("Clé API OpenAI manquante (OPENAI_API_KEY non définie dans .env)")
+            return "Erreur : clé API OpenAI non configurée.", 0
+
         try:
             from openai import OpenAI
+            import openai as _openai_module
+            import httpx as _httpx_module
+            logger.debug(
+                f"Versions : openai={_openai_module.__version__}, "
+                f"httpx={_httpx_module.__version__}"
+            )
 
             client = OpenAI(api_key=self.openai_api_key)
 
@@ -256,11 +267,11 @@ Génère une réponse structurée avec les 4 sections suivantes, séparées par 
             content = response.choices[0].message.content
             tokens_used = response.usage.total_tokens if response.usage else 0
 
-            logger.info(f"OpenAI : {tokens_used} tokens utilisés")
+            logger.info(f"OpenAI : {tokens_used} tokens utilisés (modèle={self.openai_model})")
             return content, tokens_used
 
         except Exception as e:
-            logger.error(f"Erreur API OpenAI : {e}")
+            logger.error(f"Erreur API OpenAI : {e}", exc_info=True)
             return f"Erreur lors de la génération de la synthèse : {str(e)}", 0
 
     def _call_ollama(self, prompt: str, max_tokens: int = 1000) -> Tuple[str, int]:

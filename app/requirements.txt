@@ -24,7 +24,10 @@ requests==2.32.3
 lxml==5.2.2
 
 # ─── IA / LLM ─────────────────────────────────────────────────────────────
-openai==1.35.13
+# openai>=1.56.1 corrige le bug 'proxies' avec httpx>=0.28
+# Alternative : openai>=1.56.1 + httpx>=0.28 (les deux fonctionnent ensemble)
+openai>=1.56.1
+httpx>=0.28.0
 tiktoken==0.7.0
 
 # ─── Email ────────────────────────────────────────────────────────────────

@@ -100,12 +100,16 @@
       </p>
       <form method="POST" action="{{ url_for('admin_tasks.run_daily_synthesis') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="force" value="true">
         <input type="date" name="target_date"
           value="{{ today }}"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-purple-500">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs text-gray-500">ℹ️ Le déclenchement manuel <strong>régénère toujours</strong> les synthèses existantes (force=true).</span>
+        </div>
         <button type="submit"
           class="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition">
-          ▶ Générer les synthèses quotidiennes
+          ▶ Générer / Régénérer les synthèses quotidiennes
         </button>
       </form>
     </div>
@@ -119,9 +123,13 @@
       </p>
       <form method="POST" action="{{ url_for('admin_tasks.run_weekly_synthesis') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="force" value="true">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs text-gray-500">ℹ️ Le déclenchement manuel <strong>régénère toujours</strong> les synthèses existantes (force=true).</span>
+        </div>
         <button type="submit"
           class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition">
-          ▶ Générer les synthèses hebdomadaires
+          ▶ Générer / Régénérer les synthèses hebdomadaires
         </button>
       </form>
     </div>

@@ -102,11 +102,14 @@ def run_fetch_rss():
 def run_daily_synthesis():
     """Déclenche manuellement la génération des synthèses quotidiennes."""
     target_date = request.form.get("target_date", date.today().isoformat())
+    # force=True : toujours régénérer lors d'un déclenchement manuel
+    force = request.form.get("force", "true").lower() != "false"
     try:
         from services.scheduler_tasks import generate_daily_syntheses
-        task = generate_daily_syntheses.delay(target_date_str=target_date)
-        flash(f"Génération des synthèses quotidiennes lancée pour le {target_date} (task_id: {task.id}).", "success")
-        logger.info(f"Synthèses quotidiennes déclenchées par {current_user.email}, date={target_date}")
+        task = generate_daily_syntheses.delay(target_date_str=target_date, force=force)
+        force_label = " (régénération forcée)" if force else ""
+        flash(f"Génération des synthèses quotidiennes lancée pour le {target_date}{force_label} (task_id: {task.id}).", "success")
+        logger.info(f"Synthèses quotidiennes déclenchées par {current_user.email}, date={target_date}, force={force}")
     except Exception as e:
         flash(f"Erreur lors du lancement des synthèses : {str(e)}", "danger")
         logger.error(f"Erreur déclenchement synthèses quotidiennes : {e}", exc_info=True)
@@ -118,11 +121,14 @@ def run_daily_synthesis():
 @admin_required
 def run_weekly_synthesis():
     """Déclenche manuellement la génération des synthèses hebdomadaires."""
+    # force=True : toujours régénérer lors d'un déclenchement manuel
+    force = request.form.get("force", "true").lower() != "false"
     try:
         from services.scheduler_tasks import generate_weekly_syntheses
-        task = generate_weekly_syntheses.delay()
-        flash(f"Génération des synthèses hebdomadaires lancée (task_id: {task.id}).", "success")
-        logger.info(f"Synthèses hebdomadaires déclenchées par {current_user.email}")
+        task = generate_weekly_syntheses.delay(force=force)
+        force_label = " (régénération forcée)" if force else ""
+        flash(f"Génération des synthèses hebdomadaires lancée{force_label} (task_id: {task.id}).", "success")
+        logger.info(f"Synthèses hebdomadaires déclenchées par {current_user.email}, force={force}")
     except Exception as e:
         flash(f"Erreur lors du lancement des synthèses hebdomadaires : {str(e)}", "danger")
         logger.error(f"Erreur déclenchement synthèses hebdomadaires : {e}", exc_info=True)

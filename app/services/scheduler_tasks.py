@@ -222,9 +222,10 @@ def fetch_all_feeds(self):
 # ─── Tâche : Génération des synthèses quotidiennes ────────────────────────
 @celery_app.task(bind=True, name="services.scheduler_tasks.generate_daily_syntheses",
                  max_retries=2, default_retry_delay=600)
-def generate_daily_syntheses(self, target_date_str: Optional[str] = None):
+def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force: bool = False):
     """
     Génère les synthèses quotidiennes pour tous les utilisateurs et catégories.
+    Si force=True, supprime les synthèses existantes du jour avant de régénérer.
     """
     flask_app = _get_flask_app()
     with flask_app.app_context():
@@ -270,8 +271,13 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None):
                     ).first()
 
                     if existing:
-                        logger.debug(f"Synthèse déjà existante pour user={user.id}, cat={category.name}")
-                        continue
+                        if not force:
+                            logger.debug(f"Synthèse déjà existante pour user={user.id}, cat={category.name} (utilisez force=True pour régénérer)")
+                            continue
+                        # force=True : supprimer l'ancienne synthèse avant de régénérer
+                        logger.info(f"Force=True : suppression synthèse existante user={user.id}, cat={category.name}")
+                        db.session.delete(existing)
+                        db.session.commit()
 
                     articles = (
                         db.session.query(Article)
@@ -339,9 +345,10 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None):
 # ─── Tâche : Génération des synthèses hebdomadaires ──────────────────────
 @celery_app.task(bind=True, name="services.scheduler_tasks.generate_weekly_syntheses",
                  max_retries=2, default_retry_delay=600)
-def generate_weekly_syntheses(self):
+def generate_weekly_syntheses(self, force: bool = False):
     """
     Génère les synthèses hebdomadaires pour tous les utilisateurs et catégories.
+    Si force=True, supprime les synthèses existantes de la semaine avant de régénérer.
     """
     flask_app = _get_flask_app()
     with flask_app.app_context():
@@ -385,7 +392,12 @@ def generate_weekly_syntheses(self):
                     ).first()
 
                     if existing:
-                        continue
+                        if not force:
+                            continue
+                        # force=True : supprimer l'ancienne synthèse hebdo avant de régénérer
+                        logger.info(f"Force=True : suppression synthèse hebdo existante user={user.id}, cat={category.name}")
+                        db.session.delete(existing)
+                        db.session.commit()
 
                     articles = (
                         db.session.query(Article)

@@ -64,6 +64,10 @@ def _send_via_smtp(
             msg.attach(MIMEText(text_body, "plain", "utf-8"))
         msg.attach(MIMEText(html_body, "html", "utf-8"))
 
+        # Encoder le sujet en RFC 2047 (UTF-8) pour les caractères non-ASCII (emojis, accents)
+        from email.header import Header
+        msg.replace_header("Subject", Header(subject, charset="utf-8"))
+
         with smtplib.SMTP(smtp_host, smtp_port) as server:
             server.ehlo()
             if use_tls:
@@ -71,7 +75,9 @@ def _send_via_smtp(
                 server.ehlo()
             if smtp_user and smtp_password:
                 server.login(smtp_user, smtp_password)
-            server.sendmail(from_email, to_emails, msg.as_string())
+            # Utiliser send_message au lieu de sendmail+as_string pour éviter
+            # l'encodage ASCII strict qui bloque les emojis et accents
+            server.send_message(msg)
 
         logger.info(f"Email envoyé via SMTP à : {', '.join(to_emails)}")
         return True

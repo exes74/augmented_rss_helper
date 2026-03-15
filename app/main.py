@@ -20,6 +20,31 @@ csrf = CSRFProtect()
 mail = Mail()
 
 
+def _run_incremental_migrations(app: Flask) -> None:
+    """
+    Applique les migrations incrémentales (colonnes ajoutées après la création
+    initiale des tables). Utilise ALTER TABLE ... ADD COLUMN IF NOT EXISTS pour
+    être idempotent — sans risque de casser une base existante.
+    """
+    migrations = [
+        # v2 : enrichissement full-text via newspaper3k
+        "ALTER TABLE articles ADD COLUMN IF NOT EXISTS enriched BOOLEAN NOT NULL DEFAULT FALSE",
+        "CREATE INDEX IF NOT EXISTS ix_articles_enriched ON articles (enriched)",
+    ]
+
+    try:
+        with db.engine.connect() as conn:
+            for sql in migrations:
+                try:
+                    conn.execute(db.text(sql))
+                    conn.commit()
+                except Exception as e:
+                    app.logger.debug(f"Migration ignorée (déjà appliquée ?) : {e}")
+        app.logger.info("Migrations incrémentales appliquées.")
+    except Exception as e:
+        app.logger.warning(f"Erreur lors des migrations incrémentales : {e}")
+
+
 def create_app(config_name: str = None) -> Flask:
     """Factory de création de l'application Flask."""
     if config_name is None:
@@ -53,14 +78,16 @@ def create_app(config_name: str = None) -> Flask:
     # ─── Création des tables (si nécessaire) ──────────────────────────────
     with app.app_context():
         try:
-            # Flask-SQLAlchemy moderne : passer par metadata directement
+            # Ne crée que les tables qui n'existent pas encore
             db.metadata.create_all(
                 bind=db.engine,
-                checkfirst=True   # ← Ne crée que si la table n'existe pas
+                checkfirst=True
             )
         except Exception as e:
             app.logger.warning(f"Init DB ignorée (tables déjà existantes): {e}")
-    
+
+        # Migrations incrémentales : colonnes ajoutées après la création initiale
+        _run_incremental_migrations(app)
 
     # ─── Filtre Jinja2 : Markdown → HTML ─────────────────────────────────────
     def _md_to_html(text: str) -> str:

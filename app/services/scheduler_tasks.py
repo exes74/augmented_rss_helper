@@ -279,21 +279,23 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
                         db.session.delete(existing)
                         db.session.commit()
 
+                    # CORRECTION : filtrer par published_at (date de publication)
+                    # et non par fetched_at (date de collecte)
                     articles = (
                         db.session.query(Article)
                         .join(Article.feed)
                         .filter(
                             Feed.user_id == user.id,
                             Feed.category_id == category.id,
-                            Article.fetched_at >= day_start,
-                            Article.fetched_at < day_end,
+                            Article.published_at >= day_start,
+                            Article.published_at < day_end,
                         )
                         .order_by(Article.published_at.desc())
                         .all()
                     )
 
                     if not articles:
-                        logger.debug(f"Aucun article pour user={user.id}, cat={category.name}, date={target_date}")
+                        logger.debug(f"Aucun article publié le {target_date} pour user={user.id}, cat={category.name}")
                         continue
 
                     logger.info(f"Génération synthèse : user={user.id}, cat={category.name}, {len(articles)} articles")
@@ -399,14 +401,16 @@ def generate_weekly_syntheses(self, force: bool = False):
                         db.session.delete(existing)
                         db.session.commit()
 
+                    # CORRECTION : filtrer par published_at (date de publication)
+                    # et non par fetched_at (date de collecte)
                     articles = (
                         db.session.query(Article)
                         .join(Article.feed)
                         .filter(
                             Feed.user_id == user.id,
                             Feed.category_id == category.id,
-                            Article.fetched_at >= week_start_dt,
-                            Article.fetched_at <= week_end_dt,
+                            Article.published_at >= week_start_dt,
+                            Article.published_at <= week_end_dt,
                         )
                         .order_by(Article.published_at.desc())
                         .all()
@@ -465,8 +469,10 @@ def generate_weekly_syntheses(self, force: bool = False):
 # ─── Tâche : Envoi des emails quotidiens ─────────────────────────────────
 @celery_app.task(bind=True, name="services.scheduler_tasks.send_daily_emails",
                  max_retries=3, default_retry_delay=300)
-def send_daily_emails(self, target_date_str: Optional[str] = None):
-    """Envoie les emails de synthèse quotidienne à tous les utilisateurs abonnés."""
+def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool = False):
+    """Envoie les emails de synthèse quotidienne à tous les utilisateurs abonnés.
+    Si force=True, renvoie même si l'email a déjà été envoyé (email_sent=True).
+    """
     flask_app = _get_flask_app()
     with flask_app.app_context():
         from main import db
@@ -484,7 +490,7 @@ def send_daily_emails(self, target_date_str: Optional[str] = None):
             tzinfo=timezone.utc)
         day_end = day_start + timedelta(days=1)
 
-        logger.info(f"Envoi des emails quotidiens pour le {target_date}")
+        logger.info(f"Envoi des emails quotidiens pour le {target_date} (force={force})")
         stats = {"emails_sent": 0, "errors": 0}
 
         users = User.query.filter_by(is_active=True).all()
@@ -501,8 +507,11 @@ def send_daily_emails(self, target_date_str: Optional[str] = None):
             ).filter(
                 Synthesis.generated_at >= day_start,
                 Synthesis.generated_at < day_end,
-                Synthesis.email_sent == False,
             )
+            # En mode normal, ne renvoyer que les emails non encore envoyés
+            # En mode force, renvoyer même les synthèses déjà envoyées
+            if not force:
+                query = query.filter(Synthesis.email_sent == False)
 
             if daily_cats:
                 query = query.filter(Synthesis.category_id.in_(daily_cats))
@@ -519,14 +528,15 @@ def send_daily_emails(self, target_date_str: Optional[str] = None):
                 # Récupérer les articles bruts pour la section sources
                 from models.article import Article
                 from models.feed import Feed
+                # Filtrer par published_at pour cohérence avec la synthèse
                 articles_raw = (
                     db.session.query(Article)
                     .join(Article.feed)
                     .filter(
                         Feed.user_id == user.id,
                         Feed.category_id == s.category_id,
-                        Article.fetched_at >= day_start,
-                        Article.fetched_at < day_end,
+                        Article.published_at >= day_start,
+                        Article.published_at < day_end,
                     )
                     .order_by(Article.published_at.desc())
                     .all()

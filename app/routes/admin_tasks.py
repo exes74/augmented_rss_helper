@@ -139,12 +139,18 @@ def run_weekly_synthesis():
 @login_required
 @admin_required
 def run_send_daily_emails():
-    """Déclenche manuellement l'envoi des emails quotidiens."""
+    """Déclenche manuellement l'envoi des emails quotidiens.
+    force=True par défaut : renvoie même si l'email a déjà été envoyé.
+    """
     target_date = request.form.get("target_date", date.today().isoformat())
+    # force=True par défaut lors d'un déclenchement manuel
+    force = request.form.get("force", "true").lower() != "false"
     try:
         from services.scheduler_tasks import send_daily_emails
-        task = send_daily_emails.delay(target_date_str=target_date)
-        flash(f"Envoi des emails quotidiens lancé pour le {target_date} (task_id: {task.id}).", "success")
+        task = send_daily_emails.delay(target_date_str=target_date, force=force)
+        force_label = " (renvoi forcé)" if force else ""
+        flash(f"Envoi des emails quotidiens lancé pour le {target_date}{force_label} (task_id: {task.id}).", "success")
+        logger.info(f"Emails quotidiens déclenchés par {current_user.email}, date={target_date}, force={force}")
     except Exception as e:
         flash(f"Erreur lors de l'envoi des emails : {str(e)}", "danger")
         logger.error(f"Erreur déclenchement emails quotidiens : {e}", exc_info=True)

@@ -54,21 +54,23 @@ def make_celery(flask_app=None) -> Celery:
     rss_minute = int(os.environ.get("RSS_FETCH_MINUTE", 0))
     daily_hour = int(os.environ.get("DAILY_SYNTHESIS_HOUR", 7))
     daily_minute = int(os.environ.get("DAILY_SYNTHESIS_MINUTE", 0))
-    weekly_hour = int(os.environ.get("WEEKLY_SYNTHESIS_HOUR", 8))
-    weekly_day = os.environ.get("WEEKLY_SYNTHESIS_DAY", "monday")
+    # Synthèses hebdomadaires : mercredi 7h00 par défaut
+    # (configurable via WEEKLY_SYNTHESIS_HOUR et WEEKLY_SYNTHESIS_DAY)
+    weekly_hour = int(os.environ.get("WEEKLY_SYNTHESIS_HOUR", 7))
+    weekly_minute = int(os.environ.get("WEEKLY_SYNTHESIS_MINUTE", 0))
+    weekly_day = os.environ.get("WEEKLY_SYNTHESIS_DAY", "wednesday")
 
     day_map = {
         "monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4,
         "friday": 5, "saturday": 6, "sunday": 0
     }
-    weekly_day_num = day_map.get(weekly_day.lower(), 1)
+    weekly_day_num = day_map.get(weekly_day.lower(), 3)  # 3 = mercredi
 
     celery_instance.conf.beat_schedule = {
-        # CORRECTION 2 : Collecte RSS toutes les heures (pas seulement à 6h)
-        # Cela permet d'avoir des articles dès le démarrage sans attendre le lendemain
+        # Collecte RSS toutes les heures
         "fetch-all-feeds-hourly": {
             "task": "services.scheduler_tasks.fetch_all_feeds",
-            "schedule": crontab(minute=rss_minute),  # Toutes les heures à MM:00
+            "schedule": crontab(minute=rss_minute),
         },
         # Synthèses quotidiennes (7h00 par défaut)
         "generate-daily-syntheses": {
@@ -80,16 +82,17 @@ def make_celery(flask_app=None) -> Celery:
             "task": "services.scheduler_tasks.send_daily_emails",
             "schedule": crontab(hour=daily_hour, minute=(daily_minute + 30) % 60),
         },
-        # Synthèses hebdomadaires (lundi 8h00 par défaut)
+        # Super-synthèse hebdomadaire : mercredi 7h00
+        # Prend les 7 derniers jours glissants de synthèses quotidiennes disponibles
         "generate-weekly-syntheses": {
             "task": "services.scheduler_tasks.generate_weekly_syntheses",
-            "schedule": crontab(hour=weekly_hour, minute=0,
+            "schedule": crontab(hour=weekly_hour, minute=weekly_minute,
                                 day_of_week=weekly_day_num),
         },
-        # Envoi emails hebdomadaires (lundi 8h30 par défaut)
+        # Envoi emails hebdomadaires : mercredi 7h30 (30 min après la génération)
         "send-weekly-emails": {
             "task": "services.scheduler_tasks.send_weekly_emails",
-            "schedule": crontab(hour=weekly_hour, minute=30,
+            "schedule": crontab(hour=weekly_hour, minute=(weekly_minute + 30) % 60,
                                 day_of_week=weekly_day_num),
         },
         # Nettoyage des anciens articles (tous les dimanches à 3h00)
@@ -350,10 +353,11 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
 def generate_weekly_syntheses(self, force: bool = False):
     """
     Génère les synthèses hebdomadaires sous forme de "super-synthèse" :
-    agrège les synthèses QUOTIDIENNES de la semaine précédente par catégorie,
+    agrège les synthèses QUOTIDIENNES des 7 DERNIERS JOURS GLISSANTS par catégorie,
     puis demande au LLM de produire une synthèse de synthèses.
 
-    La semaine de référence est toujours la SEMAINE PRÉCÉDENTE (lun→dim).
+    La fenêtre est toujours J-7 → hier (7 jours glissants).
+    Si certains jours n'ont pas de synthèse, on prend ce qui est disponible.
     Si force=True, supprime les synthèses hebdo existantes avant de régénérer.
     """
     flask_app = _get_flask_app()
@@ -365,18 +369,18 @@ def generate_weekly_syntheses(self, force: bool = False):
         from services.ai_synthesizer import get_synthesizer
 
         today = date.today()
-        # Semaine précédente : lundi de la semaine dernière → dimanche dernier
-        last_monday = today - timedelta(days=today.weekday() + 7)
-        last_sunday = last_monday + timedelta(days=6)
+        # Fenêtre glissante : les 7 derniers jours (J-7 → hier inclus)
+        period_end = today - timedelta(days=1)          # hier
+        period_start = period_end - timedelta(days=6)   # il y a 7 jours
 
-        week_start_dt = datetime.combine(last_monday, datetime.min.time()).replace(
+        week_start_dt = datetime.combine(period_start, datetime.min.time()).replace(
             tzinfo=timezone.utc)
-        week_end_dt = datetime.combine(last_sunday, datetime.max.time()).replace(
+        week_end_dt = datetime.combine(period_end, datetime.max.time()).replace(
             tzinfo=timezone.utc)
 
         logger.info(
             f"Génération des super-synthèses hebdomadaires "
-            f"pour la semaine du {last_monday} au {last_sunday}"
+            f"(fenêtre glissante : {period_start} → {period_end})"
         )
 
         synthesizer = get_synthesizer(flask_app)
@@ -426,15 +430,16 @@ def generate_weekly_syntheses(self, force: bool = False):
                     ).order_by(Synthesis.generated_at.asc()).all()
 
                     if not daily_syntheses:
-                        logger.debug(
-                            f"Aucune synthèse quotidienne trouvée pour la semaine "
-                            f"du {last_monday} — user={user.id}, cat={category.name}"
+                        logger.info(
+                            f"Aucune synthèse quotidienne disponible sur les 7 derniers jours "
+                            f"({period_start} → {period_end}) — user={user.id}, cat={category.name} — ignoré"
                         )
                         continue
 
                     logger.info(
                         f"Super-synthèse hebdo : user={user.id}, cat={category.name}, "
-                        f"{len(daily_syntheses)} synthèses quotidiennes agrégées"
+                        f"{len(daily_syntheses)} synthèses quotidiennes disponibles "
+                        f"(sur 7 jours demandés)"
                     )
 
                     # Préparer les données des synthèses quotidiennes pour le LLM
@@ -447,11 +452,11 @@ def generate_weekly_syntheses(self, force: bool = False):
                         for s in daily_syntheses
                     ]
 
-                    # Calculer le numéro de semaine ISO
-                    week_number = last_monday.isocalendar()[1]
+                    # Numéro de semaine ISO basé sur la date de fin de période
+                    week_number = period_end.isocalendar()[1]
 
                     result, tokens_used = synthesizer.generate_weekly_synthesis(
-                        daily_data, category.name, last_monday, last_sunday,
+                        daily_data, category.name, period_start, period_end,
                         week_number=week_number
                     )
 
@@ -630,17 +635,18 @@ def send_weekly_emails(self, force: bool = False):
         from services.email_sender import send_weekly_synthesis_email
 
         today = date.today()
-        # Référence : semaine précédente (cohérent avec generate_weekly_syntheses)
-        last_monday = today - timedelta(days=today.weekday() + 7)
-        last_sunday = last_monday + timedelta(days=6)
-        week_start_dt = datetime.combine(last_monday, datetime.min.time()).replace(
+        # Fenêtre glissante : les 7 derniers jours (J-7 → hier)
+        # Cohérent avec generate_weekly_syntheses
+        period_end = today - timedelta(days=1)
+        period_start = period_end - timedelta(days=6)
+        week_start_dt = datetime.combine(period_start, datetime.min.time()).replace(
             tzinfo=timezone.utc)
-        week_end_dt = datetime.combine(last_sunday, datetime.max.time()).replace(
+        week_end_dt = datetime.combine(period_end, datetime.max.time()).replace(
             tzinfo=timezone.utc)
 
         logger.info(
-            f"Envoi des emails hebdomadaires pour la semaine du {last_monday} "
-            f"au {last_sunday} (force={force})"
+            f"Envoi des emails hebdomadaires (fenêtre glissante : "
+            f"{period_start} → {period_end}, force={force})"
         )
         stats = {"emails_sent": 0, "errors": 0}
 
@@ -691,7 +697,7 @@ def send_weekly_emails(self, force: bool = False):
 
             try:
                 success = send_weekly_synthesis_email(
-                    to_emails, syntheses_data, last_monday, last_sunday
+                    to_emails, syntheses_data, period_start, period_end
                 )
                 if success:
                     for s in syntheses:

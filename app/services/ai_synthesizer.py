@@ -79,20 +79,29 @@ FORMAT ATTENDU :
 
     def generate_weekly_synthesis(
         self,
-        articles: List[Dict],
+        daily_syntheses: List[Dict],
         category_name: str,
         week_start: Optional[date] = None,
-        week_end: Optional[date] = None
+        week_end: Optional[date] = None,
+        week_number: Optional[int] = None,
     ) -> Tuple[Dict[str, str], int]:
         """
-        Génère une synthèse hebdomadaire avec draft LinkedIn.
+        Génère une super-synthèse hebdomadaire à partir des synthèses quotidiennes.
+
+        Args:
+            daily_syntheses: Liste de dicts {date, content, articles_count}
+                             représentant les synthèses quotidiennes de la semaine
+            category_name: Nom de la catégorie
+            week_start: Lundi de la semaine de référence
+            week_end: Dimanche de la semaine de référence
+            week_number: Numéro ISO de la semaine (pour le Cyber Brief)
 
         Returns:
             Tuple (dict avec content/key_facts/trends/draft_linkedin, tokens_utilisés)
         """
-        if not articles:
+        if not daily_syntheses:
             empty = {
-                "content": "Aucun article collecté cette semaine pour cette catégorie.",
+                "content": "Aucune synthèse quotidienne disponible pour cette semaine.",
                 "key_facts": "",
                 "trends": "",
                 "draft_linkedin": "",
@@ -101,57 +110,145 @@ FORMAT ATTENDU :
 
         if not week_start:
             today = date.today()
-            week_start = today - timedelta(days=today.weekday())
+            week_start = today - timedelta(days=today.weekday() + 7)
         if not week_end:
             week_end = week_start + timedelta(days=6)
+        if not week_number:
+            week_number = week_start.isocalendar()[1]
 
         period = f"du {week_start.strftime('%d/%m')} au {week_end.strftime('%d/%m/%Y')}"
-        articles_text = self._format_articles_for_prompt(articles, max_articles=40)
+        date_str = week_start.strftime("%d %B %Y")
+        total_articles = sum(s.get("articles_count", 0) for s in daily_syntheses)
 
-        prompt = f"""Tu es un expert en veille informationnelle et en création de contenu LinkedIn. Analyse les articles de la semaine {period} dans la catégorie "{category_name}" et génère une synthèse hebdomadaire complète.
+        # Formater les synthèses quotidiennes pour le prompt
+        syntheses_text = ""
+        for s in daily_syntheses:
+            syntheses_text += f"\n--- Synthèse du {s['date']} ({s['articles_count']} articles) ---\n"
+            syntheses_text += s["content"] + "\n"
 
-ARTICLES DE LA SEMAINE :
-{articles_text}
+        # ─── Prompt 1 : Super-synthèse + Faits + Tendances ───
+        prompt_synthese = f"""Tu es un expert en veille informationnelle. \
+Tu disposes des synthèses quotidiennes de la semaine {period} pour la catégorie "{category_name}".
+Ta mission : produire une super-synthèse hebdomadaire à partir de ces synthèses.
+
+SYNTHÈSES QUOTIDIENNES DE LA SEMAINE ({len(daily_syntheses)} jours, {total_articles} articles au total) :
+{syntheses_text}
 
 CONSIGNES GÉNÉRALES :
 - Langue : français
-- Style professionnel et engageant
-- Citer les sources
+- Style professionnel et analytique
+- Citer les sources mentionnées dans les synthèses
+- Ne pas simplement concaténer les synthèses : produire une analyse transversale
 
-Génère une réponse structurée avec les 4 sections suivantes, séparées par des marqueurs :
+Génère une réponse structurée avec les 3 sections suivantes, séparées par des marqueurs :
 
 ===SYNTHESE===
-[Synthèse générale de la semaine en 400-500 mots. Couvrir les événements majeurs, les annonces importantes, les évolutions du secteur. Style informatif.]
+[Super-synthèse de la semaine en 400-500 mots. Identifier les fils conducteurs, les événements majeurs, les évolutions du secteur. Aller au-delà de la simple liste des faits : proposer une lecture transversale.]
 
 ===FAITS_MARQUANTS===
-[Liste des 5-7 faits marquants de la semaine sous forme de bullet points avec source et date]
-• [Fait 1] — Source : [nom]
-• [Fait 2] — Source : [nom]
+[Liste des 5-7 faits marquants de la semaine, extraits des synthèses quotidiennes]
+• [Fait 1 — date — source]
+• [Fait 2 — date — source]
 ...
 
 ===TENDANCES===
-[Liste des 3-5 tendances majeures observées cette semaine sous forme de bullet points]
+[Liste des 3-5 tendances majeures observées sur la semaine]
 • [Tendance 1 : explication]
 • [Tendance 2 : explication]
 ...
-
-===DRAFT_LINKEDIN===
-[Draft de post LinkedIn prêt à publier, 150-200 mots]
-
-🔍 [Accroche percutante sur une ligne]
-
-[Corps du post en 3-4 paragraphes courts, style conversationnel, chiffres et faits concrets]
-
-[Conclusion avec appel à l'action ou question ouverte]
-
-#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5
 """
 
-        content, tokens = self._call_llm(prompt, max_tokens=2000)
+        # ─── Prompt 2 : Draft LinkedIn Cyber Brief ───
+        prompt_linkedin = f"""Tu es Younes, expert en cybersécurité avec 13 ans d'expérience. \
+Chaque vendredi tu publies ton "Cyber Brief" sur LinkedIn.
+Voici les synthèses de ta veille de la semaine {period} (catégorie : {category_name}) :
 
-        # Parser les sections
-        result = self._parse_weekly_response(content)
-        return result, tokens
+{syntheses_text}
+
+Génère le post LinkedIn "⚡ Cyber Brief #[NUMÉRO]" avec cette structure fixe :
+
+═══ STRUCTURE IMPOSÉE ═══
+
+Ligne 1 — ACCROCHE (jamais d'emoji, max 8 mots)
+Format au choix :
+→ "Ce que [X] ne te dit pas sur [Y]"
+→ Question contre-intuitive sur l'actu dominante
+→ Affirmation tranchée qui surprend
+
+Saut de ligne
+⚡ Cyber Brief #{week_number} — Semaine du {date_str}
+
+Saut de ligne
+🔴 1 MENACE
+[1-2 lignes max : la menace la plus critique de la semaine]
+[1 donnée chiffrée obligatoire]
+
+Saut de ligne
+🕳️ 1 FAILLE
+[1-2 lignes max : la vulnérabilité à surveiller]
+[Niveau de criticité + systèmes concernés]
+
+Saut de ligne
+🛡️ 1 BONNE PRATIQUE
+[1-2 lignes max : action concrète et immédiate]
+[Applicable sans budget / sans délai]
+
+Saut de ligne
+📊 1 CHIFFRE QUI DÉRANGE
+[Stat marquante de la semaine]
+[1 ligne de contexte qui rend ce chiffre percutant]
+
+Saut de ligne
+💡 L'INSIGHT DE LA SEMAINE
+[Tendance transversale qui relie ces 4 éléments]
+[Ton angle unique — ce que personne d'autre ne dira]
+[Position tranchée, jamais de consensus mou]
+
+Saut de ligne
+[QUESTION CLIVANTE pour forcer les commentaires]
+Exemples de format :
+→ "Les RSSI que je croise pensent que [X]. Vous en êtes où ?"
+→ "On fait quoi concrètement face à ça ?"
+→ "C'est évitable ou on l'accepte comme une fatalité ?"
+
+Saut de ligne
+#Cybersécurité #[HashtagNiche1] #[HashtagNiche2] #RSSI
+
+═══ CONTRAINTES ABSOLUES ═══
+
+FOND :
+- 1 insight original non présent dans les articles sources
+- Zéro reformulation de ce qui existe déjà sur le fil
+- Position assumée, jamais de "il faudrait peut-être"
+
+FORME :
+- 160-180 mots strictement
+- Saut de ligne après CHAQUE phrase
+- 1 emoji par section, uniquement ceux définis
+- Mots INTERDITS : "crucial", "important", "partager", "liker", "abonnez-vous",
+  "Dans un monde où", "Il est essentiel de", "force est de constater"
+- Lien source → ne pas intégrer dans le post (sera posté en 1er commentaire)
+
+ALGORITHME :
+- Première ligne doit fonctionner SEULE avant le "voir plus"
+- Proposer 2 variantes d'accroche (Variante A et Variante B) avant le post final
+- Format identique chaque semaine (l'audience doit reconnaître la structure)
+
+Réponds en français uniquement.
+"""
+
+        # Appel LLM en deux étapes
+        logger.info(f"Super-synthèse hebdo — étape 1 : synthèse + faits + tendances")
+        content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=2000)
+
+        logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
+        linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
+
+        # Parser les sections de la synthèse
+        result = self._parse_weekly_response(content_raw)
+        result["draft_linkedin"] = linkedin_raw.strip()
+
+        return result, tokens_1 + tokens_2
 
     def _format_articles_for_prompt(
         self,

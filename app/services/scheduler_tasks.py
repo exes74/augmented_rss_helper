@@ -349,29 +349,35 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
                  max_retries=2, default_retry_delay=600)
 def generate_weekly_syntheses(self, force: bool = False):
     """
-    Génère les synthèses hebdomadaires pour tous les utilisateurs et catégories.
-    Si force=True, supprime les synthèses existantes de la semaine avant de régénérer.
+    Génère les synthèses hebdomadaires sous forme de "super-synthèse" :
+    agrège les synthèses QUOTIDIENNES de la semaine précédente par catégorie,
+    puis demande au LLM de produire une synthèse de synthèses.
+
+    La semaine de référence est toujours la SEMAINE PRÉCÉDENTE (lun→dim).
+    Si force=True, supprime les synthèses hebdo existantes avant de régénérer.
     """
     flask_app = _get_flask_app()
     with flask_app.app_context():
         from main import db
         from models.user import User
         from models.category import Category
-        from models.article import Article
-        from models.feed import Feed
         from models.synthesis import Synthesis
         from services.ai_synthesizer import get_synthesizer
 
         today = date.today()
-        week_start = today - timedelta(days=today.weekday())
-        week_end = week_start + timedelta(days=6)
+        # Semaine précédente : lundi de la semaine dernière → dimanche dernier
+        last_monday = today - timedelta(days=today.weekday() + 7)
+        last_sunday = last_monday + timedelta(days=6)
 
-        week_start_dt = datetime.combine(week_start, datetime.min.time()).replace(
+        week_start_dt = datetime.combine(last_monday, datetime.min.time()).replace(
             tzinfo=timezone.utc)
-        week_end_dt = datetime.combine(week_end, datetime.max.time()).replace(
+        week_end_dt = datetime.combine(last_sunday, datetime.max.time()).replace(
             tzinfo=timezone.utc)
 
-        logger.info(f"Génération des synthèses hebdomadaires pour la semaine du {week_start}")
+        logger.info(
+            f"Génération des super-synthèses hebdomadaires "
+            f"pour la semaine du {last_monday} au {last_sunday}"
+        )
 
         synthesizer = get_synthesizer(flask_app)
         stats = {"users_processed": 0, "syntheses_generated": 0, "errors": 0}
@@ -385,54 +391,71 @@ def generate_weekly_syntheses(self, force: bool = False):
                 ).all()
 
                 for category in categories:
+                    # Vérifier si une synthèse hebdo existe déjà pour cette semaine
                     existing = Synthesis.query.filter_by(
                         user_id=user.id,
                         category_id=category.id,
                         type=Synthesis.TYPE_WEEKLY,
                     ).filter(
                         Synthesis.period_start >= week_start_dt,
+                        Synthesis.period_start <= week_end_dt,
                     ).first()
 
                     if existing:
                         if not force:
+                            logger.debug(
+                                f"Super-synthèse hebdo déjà existante "
+                                f"user={user.id}, cat={category.name}"
+                            )
                             continue
-                        # force=True : supprimer l'ancienne synthèse hebdo avant de régénérer
-                        logger.info(f"Force=True : suppression synthèse hebdo existante user={user.id}, cat={category.name}")
+                        logger.info(
+                            f"Force=True : suppression super-synthèse hebdo existante "
+                            f"user={user.id}, cat={category.name}"
+                        )
                         db.session.delete(existing)
                         db.session.commit()
 
-                    # CORRECTION : filtrer par published_at (date de publication)
-                    # et non par fetched_at (date de collecte)
-                    articles = (
-                        db.session.query(Article)
-                        .join(Article.feed)
-                        .filter(
-                            Feed.user_id == user.id,
-                            Feed.category_id == category.id,
-                            Article.published_at >= week_start_dt,
-                            Article.published_at <= week_end_dt,
-                        )
-                        .order_by(Article.published_at.desc())
-                        .all()
-                    )
+                    # Récupérer les synthèses QUOTIDIENNES de la semaine précédente
+                    daily_syntheses = Synthesis.query.filter_by(
+                        user_id=user.id,
+                        category_id=category.id,
+                        type=Synthesis.TYPE_DAILY,
+                    ).filter(
+                        Synthesis.generated_at >= week_start_dt,
+                        Synthesis.generated_at <= week_end_dt,
+                    ).order_by(Synthesis.generated_at.asc()).all()
 
-                    if not articles:
+                    if not daily_syntheses:
+                        logger.debug(
+                            f"Aucune synthèse quotidienne trouvée pour la semaine "
+                            f"du {last_monday} — user={user.id}, cat={category.name}"
+                        )
                         continue
 
-                    articles_data = [
+                    logger.info(
+                        f"Super-synthèse hebdo : user={user.id}, cat={category.name}, "
+                        f"{len(daily_syntheses)} synthèses quotidiennes agrégées"
+                    )
+
+                    # Préparer les données des synthèses quotidiennes pour le LLM
+                    daily_data = [
                         {
-                            "title": a.title,
-                            "url": a.url,
-                            "content": a.content,
-                            "published_at": a.published_at,
-                            "feed_name": a.feed.display_name if a.feed else "",
+                            "date": s.generated_at.strftime("%d/%m/%Y") if s.generated_at else "",
+                            "content": s.content or "",
+                            "articles_count": s.articles_count or 0,
                         }
-                        for a in articles
+                        for s in daily_syntheses
                     ]
 
+                    # Calculer le numéro de semaine ISO
+                    week_number = last_monday.isocalendar()[1]
+
                     result, tokens_used = synthesizer.generate_weekly_synthesis(
-                        articles_data, category.name, week_start, week_end
+                        daily_data, category.name, last_monday, last_sunday,
+                        week_number=week_number
                     )
+
+                    total_articles = sum(s.articles_count or 0 for s in daily_syntheses)
 
                     synthesis = Synthesis(
                         user_id=user.id,
@@ -442,7 +465,7 @@ def generate_weekly_syntheses(self, force: bool = False):
                         key_facts=result.get("key_facts", ""),
                         trends=result.get("trends", ""),
                         draft_linkedin=result.get("draft_linkedin", ""),
-                        articles_count=len(articles),
+                        articles_count=total_articles,
                         tokens_used=tokens_used,
                         period_start=week_start_dt,
                         period_end=week_end_dt,
@@ -450,17 +473,23 @@ def generate_weekly_syntheses(self, force: bool = False):
                     db.session.add(synthesis)
                     db.session.commit()
                     stats["syntheses_generated"] += 1
-                    logger.info(f"Synthèse hebdo créée : user={user.id}, cat={category.name}")
+                    logger.info(
+                        f"Super-synthèse hebdo créée : user={user.id}, "
+                        f"cat={category.name}, tokens={tokens_used}"
+                    )
 
                 stats["users_processed"] += 1
 
             except Exception as e:
-                logger.error(f"Erreur synthèse hebdomadaire user={user.id}: {e}", exc_info=True)
+                logger.error(
+                    f"Erreur super-synthèse hebdomadaire user={user.id}: {e}",
+                    exc_info=True
+                )
                 db.session.rollback()
                 stats["errors"] += 1
 
         logger.info(
-            f"Synthèses hebdomadaires terminées : {stats['users_processed']} utilisateurs, "
+            f"Super-synthèses hebdomadaires terminées : {stats['users_processed']} utilisateurs, "
             f"{stats['syntheses_generated']} synthèses générées"
         )
         return stats

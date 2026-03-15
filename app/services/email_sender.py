@@ -417,49 +417,75 @@ def send_weekly_synthesis_email(
 
     categories_html = ""
     for item in syntheses_by_category:
-        linkedin_html = ""
-        if item.get("draft_linkedin"):
-            linkedin_content = item["draft_linkedin"].replace("\n", "<br>")
-            linkedin_html = f"""
-            <div style="margin-top: 20px; padding: 15px; background: #EFF6FF;
-                        border-radius: 6px; border: 1px solid #BFDBFE;">
-                <h4 style="color: #1D4ED8; margin-top: 0;">💼 Draft Post LinkedIn</h4>
-                <div style="color: #374151; line-height: 1.6; white-space: pre-line;">
-                    {linkedin_content}
+        # ─── Section Synthèse ───
+        content_html = _markdown_to_html(item.get("content", ""))
+
+        # ─── Section Faits marquants ───
+        key_facts_html = ""
+        if item.get("key_facts"):
+            key_facts_html = f"""
+            <div style="margin-top: 20px; padding: 15px; background: #FFF7ED;
+                        border-radius: 6px; border-left: 4px solid #F59E0B;">
+                <h4 style="color: #92400E; margin-top: 0; font-size: 14px;
+                           text-transform: uppercase; letter-spacing: 0.05em;">
+                    Faits marquants de la semaine
+                </h4>
+                <div style="color: #374151; line-height: 1.7; font-size: 14px;">
+                    {_markdown_to_html(item['key_facts'])}
                 </div>
             </div>
             """
 
-        key_facts_html = ""
-        if item.get("key_facts"):
-            key_facts_content = item["key_facts"].replace("\n", "<br>")
-            key_facts_html = f"""
-            <div style="margin-top: 15px;">
-                <h4 style="color: #1F2937;">📌 Faits marquants</h4>
-                <div style="color: #374151; line-height: 1.6;">{key_facts_content}</div>
-            </div>
-            """
-
+        # ─── Section Tendances ───
         trends_html = ""
         if item.get("trends"):
-            trends_content = item["trends"].replace("\n", "<br>")
             trends_html = f"""
-            <div style="margin-top: 15px;">
-                <h4 style="color: #1F2937;">📈 Tendances observées</h4>
-                <div style="color: #374151; line-height: 1.6;">{trends_content}</div>
+            <div style="margin-top: 20px; padding: 15px; background: #F0FDF4;
+                        border-radius: 6px; border-left: 4px solid #10B981;">
+                <h4 style="color: #065F46; margin-top: 0; font-size: 14px;
+                           text-transform: uppercase; letter-spacing: 0.05em;">
+                    Tendances observées
+                </h4>
+                <div style="color: #374151; line-height: 1.7; font-size: 14px;">
+                    {_markdown_to_html(item['trends'])}
+                </div>
             </div>
             """
 
-        content_html = item.get("content", "").replace("\n", "<br>")
+        # ─── Section Draft LinkedIn Cyber Brief ───
+        linkedin_html = ""
+        if item.get("draft_linkedin"):
+            # Le draft LinkedIn est du texte brut formaté avec des sauts de ligne
+            # On préserve le format en utilisant white-space: pre-line
+            linkedin_content = item["draft_linkedin"]
+            linkedin_html = f"""
+            <div style="margin-top: 20px; padding: 20px; background: #EFF6FF;
+                        border-radius: 6px; border: 1px solid #BFDBFE;">
+                <h4 style="color: #1D4ED8; margin-top: 0; font-size: 14px;
+                           text-transform: uppercase; letter-spacing: 0.05em;">
+                    ⚡ Draft Cyber Brief LinkedIn
+                </h4>
+                <div style="background: white; border-radius: 4px; padding: 15px;
+                            border: 1px solid #DBEAFE; font-family: -apple-system,
+                            BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                            font-size: 14px; line-height: 1.8; color: #1F2937;
+                            white-space: pre-line;">
+{linkedin_content}
+                </div>
+                <p style="color: #6B7280; font-size: 11px; margin: 8px 0 0 0;">
+                    Copiez ce texte directement dans LinkedIn. Les liens sources sont à poster en 1er commentaire.
+                </p>
+            </div>
+            """
 
         categories_html += f"""
         <div style="margin-bottom: 40px; padding: 20px; background: #F9FAFB;
                     border-radius: 8px; border-left: 4px solid #8B5CF6;">
-            <h3 style="color: #1F2937; margin-top: 0;">{item['category_name']}</h3>
+            <h3 style="color: #1F2937; margin-top: 0; font-size: 18px;">{item['category_name']}</h3>
             <p style="color: #6B7280; font-size: 13px; margin-bottom: 15px;">
-                {item.get('articles_count', 0)} article(s) analysé(s) cette semaine
+                Super-synthèse — {item.get('articles_count', 0)} article(s) analysé(s) cette semaine
             </p>
-            <div style="color: #374151; line-height: 1.6;">{content_html}</div>
+            <div style="color: #374151; line-height: 1.7; font-size: 14px;">{content_html}</div>
             {key_facts_html}
             {trends_html}
             {linkedin_html}

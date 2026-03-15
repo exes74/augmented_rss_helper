@@ -64,9 +64,9 @@
                         </div>
                         <div class="text-sm text-gray-500 mt-1">{{ synthesis.period_label }}</div>
                         {% if synthesis.content %}
-                        <p class="text-sm text-gray-600 mt-2 line-clamp-2">
-                            {{ synthesis.content[:200] }}...
-                        </p>
+                        <div class="text-sm text-gray-600 mt-2 prose prose-sm max-w-none line-clamp-3">
+                            {{ synthesis.content[:300] | markdown }}
+                        </div>
                         {% endif %}
                     </div>
                 </div>

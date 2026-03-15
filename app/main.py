@@ -62,6 +62,34 @@ def create_app(config_name: str = None) -> Flask:
             app.logger.warning(f"Init DB ignorée (tables déjà existantes): {e}")
     
 
+    # ─── Filtre Jinja2 : Markdown → HTML ─────────────────────────────────────
+    def _md_to_html(text: str) -> str:
+        """Convertit du Markdown en HTML pour l'affichage dans les templates."""
+        if not text:
+            return ""
+        try:
+            import markdown as md_lib
+            from markupsafe import Markup
+            result = md_lib.markdown(
+                text,
+                extensions=["nl2br", "sane_lists", "tables"]
+            )
+            return Markup(result)
+        except ImportError:
+            # Fallback si markdown n'est pas installé
+            import re
+            from markupsafe import Markup, escape
+            text = str(escape(text))
+            text = re.sub(r'^#{1,3}\s+(.+)$', r'<h3>\1</h3>', text, flags=re.MULTILINE)
+            text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+            text = re.sub(r'\*(.+?)\*', r'<em>\1</em>', text)
+            text = re.sub(r'^[\u2022\-\*]\s+(.+)$', r'<li>\1</li>', text, flags=re.MULTILINE)
+            text = re.sub(r'(<li>.*</li>)', r'<ul>\1</ul>', text, flags=re.DOTALL)
+            text = text.replace('\n', '<br>')
+            return Markup(text)
+
+    app.jinja_env.filters['markdown'] = _md_to_html
+
     # ─── Route racine ─────────────────────────────────────────────────────
     @app.route("/")
     def index():

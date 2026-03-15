@@ -30,8 +30,12 @@
     {% if synthesis.content %}
     <div class="bg-white rounded-xl border border-gray-200 p-6">
         <h2 class="font-semibold text-gray-900 mb-4">Synthèse</h2>
-        <div class="prose text-gray-700 text-sm leading-relaxed">
-            {{ synthesis.content | replace('\n', '<br>') | safe }}
+        <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed
+                    [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-gray-900 [&_h3]:mt-4 [&_h3]:mb-2
+                    [&_strong]:font-semibold [&_strong]:text-gray-900
+                    [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1
+                    [&_li]:text-gray-700">
+            {{ synthesis.content | markdown }}
         </div>
     </div>
     {% endif %}
@@ -42,8 +46,11 @@
     {% if synthesis.key_facts %}
     <div class="bg-white rounded-xl border border-gray-200 p-6">
         <h2 class="font-semibold text-gray-900 mb-4">📌 Faits marquants de la semaine</h2>
-        <div class="prose text-gray-700 text-sm leading-relaxed">
-            {{ synthesis.key_facts | replace('\n', '<br>') | safe }}
+        <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed
+                    [&_strong]:font-semibold [&_strong]:text-gray-900
+                    [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1
+                    [&_li]:text-gray-700">
+            {{ synthesis.key_facts | markdown }}
         </div>
     </div>
     {% endif %}
@@ -51,8 +58,11 @@
     {% if synthesis.trends %}
     <div class="bg-white rounded-xl border border-gray-200 p-6">
         <h2 class="font-semibold text-gray-900 mb-4">📈 Tendances observées</h2>
-        <div class="prose text-gray-700 text-sm leading-relaxed">
-            {{ synthesis.trends | replace('\n', '<br>') | safe }}
+        <div class="prose prose-sm max-w-none text-gray-700 leading-relaxed
+                    [&_strong]:font-semibold [&_strong]:text-gray-900
+                    [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1
+                    [&_li]:text-gray-700">
+            {{ synthesis.trends | markdown }}
         </div>
     </div>
     {% endif %}

@@ -158,83 +158,103 @@ Génère une réponse structurée avec les 3 sections suivantes, séparées par 
 ...
 """
 
-        # ─── Prompt 2 : Draft LinkedIn Cyber Brief (prompt utilisateur) ───
+        # ─── Prompt 2 : Cyber Brief LinkedIn (prompt utilisateur, verbatim) ───
         week_start_str = week_start.strftime("%d")
         week_end_str = week_end.strftime("%d %B %Y")
-        prompt_linkedin = f"""Tu es Younes, expert en cybersécurité avec 13 ans d'expérience. Chaque vendredi tu publies ton "Cyber Brief" sur LinkedIn.
-A partir des syntheses de la semaine, Génère le post LinkedIn "⚡ Cyber Brief #[NUMÉRO]" avec cette structure fixe :
+        prompt_linkedin = f"""Tu es un expert en cybersécurité, style analytique, légèrement impertinent.
+Audience : professionnels cyber (RSSI, analystes, pentesters) avec quelques profils mixtes.
 
-SYNTHÈSES DE LA SEMAINE ({len(daily_syntheses)} jours) :
+Tu reçois {len(daily_syntheses)} synthèses quotidiennes au format suivant :
+- Résumé
+- Points clés (bullets)
+- Tendances observées
+
 {syntheses_text}
 
-═══ STRUCTURE IMPOSÉE ═══
+═══ TÂCHE ═══
 
-Ligne 1 — ACCROCHE (jamais d'emoji, max 8 mots)
-Format au choix :
-→ "Ce que [X] ne te dit pas sur [Y]"
-→ Question contre-intuitive sur l'actu dominante
-→ Affirmation tranchée qui surprend
+Produis une métasynthèse hebdomadaire structurée comme suit :
 
-Saut de ligne
-⚡ Cyber Brief #{week_number} — Semaine du {week_start_str} au {week_end_str}
+---
 
-Saut de ligne
-🔴 1 MENACE
-[1-2 lignes max : la menace la plus critique de la semaine]
-[1 donnée chiffrée obligatoire]
+[TITRE]
+Sobre, factuel, légèrement impertinent.
+Résume la semaine sans l'épuiser.
+Pas de question. Pas d'exclamation. Pas de jeu de mots forcé.
+Exemples de ton acceptable :
+→ "La semaine où l'IA est passée de l'autre côté"
+→ "Quand la surface d'attaque grandit plus vite que les équipes"
 
-Saut de ligne
-🕳️ 1 FAILLE
-[1-2 lignes max : la vulnérabilité à surveiller]
-[Niveau de criticité + systèmes concernés]
+⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str}
 
-Saut de ligne
-🛡️ 1 BONNE PRATIQUE
-[1-2 lignes max : action concrète et immédiate]
-[Applicable sans budget / sans délai]
+[INTRO — 3 lignes max]
+Ce que cette semaine dit du secteur, en une lecture transversale.
+Pas un résumé des 7 jours. Une lecture.
+1 donnée chiffrée si elle est disponible dans les synthèses.
 
-Saut de ligne
-📊 1 CHIFFRE QUI DÉRANGE
-[Stat marquante de la semaine]
-[1 ligne de contexte qui rend ce chiffre percutant]
+5 FAITS MARQUANTS DE LA SEMAINE
 
-Saut de ligne
-💡 L'INSIGHT DE LA SEMAINE
-[Tendance transversale qui relie ces 4 éléments]
-[Ton angle unique — ce que personne d'autre ne dira]
-[Position tranchée, jamais de consensus mou]
+1. [Titre court du fait]
+[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
 
-Saut de ligne
-[QUESTION CLIVANTE pour forcer les commentaires]
-Exemples de format :
-→ "Les RSSI que je croise pensent que [X]. Vous en êtes où ?"
-→ "On fait quoi concrètement face à ça ?"
-→ "C'est évitable ou on l'accepte comme une fatalité ?"
+2. [Titre court du fait]
+[2-3 lignes]
 
-Saut de ligne
+3. [Titre court du fait]
+[2-3 lignes]
+
+4. [Titre court du fait]
+[2-3 lignes]
+
+5. [Titre court du fait]
+[2-3 lignes]
+
+→ Critères de sélection des 5 faits :
+- Impact réel ou potentiel sur les organisations
+- Nouveauté (pas une énième variante d'une menace connue)
+- Révélateur d'une tendance plus large
+- Diversité : ne pas prendre 5 faits du même registre (ex : 5 vulnérabilités)
+
+TENDANCES DE LA SEMAINE
+
+[2-3 tendances, formulées en 2-3 lignes chacune]
+Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
+Formuler ce qui monte, ce qui bascule, ce qui se confirme.
+Impertinence autorisée si le consensus du secteur mérite d'être challengé.
+
+OUVERTURE
+
+[3-4 lignes]
+Pas de conclusion rassurante. Pas de morale.
+Une perspective constructive : ce qui avance, ce qui protège mieux,
+ce qui mérite d'être suivi la semaine prochaine.
+Ton sobre. 1 seule idée forte.
+
 #Cybersécurité #[HashtagNiche1] #[HashtagNiche2] #RSSI
 
-═══ CONTRAINTES ABSOLUES ═══
+[XXX mots]
+
+═══ CONTRAINTES ═══
 
 FOND :
-- 1 insight original non présent dans les articles sources
-- Zéro reformulation de ce qui existe déjà sur le fil
-- Position assumée, jamais de "il faudrait peut-être"
+- Croiser les {len(daily_syntheses)} synthèses, pas les additionner
+- Les tendances doivent être transversales (au moins 2 synthèses différentes)
+- 0 fait inventé ou extrapolé au-delà des sources
 
 FORME :
-- 160-180 mots strictement
-- Saut de ligne après CHAQUE phrase
-- 1 emoji par section, uniquement ceux définis
-- Mots INTERDITS : "crucial", "important", "partager", "liker", "abonnez-vous",
-  "Dans un monde où", "Il est essentiel de", "force est de constater"
-- Lien source → ne pas intégrer dans le post (à poster en 1er commentaire)
+- 450-550 mots strictement (afficher le total)
+- Langue : français intégral, termes techniques en anglais acceptés
+- Aucun emoji sauf ⚡ sur la ligne Cyber Brief
+- 1 saut de ligne entre chaque bloc
+- Les titres de section (5 FAITS, TENDANCES, OUVERTURE)
+  sont visibles dans le post — format sobre, sans décoration
 
-ALGORITHME :
-- Première ligne doit fonctionner SEULE avant le "voir plus"
-- Tester 2 variantes d'accroche et me les soumettre avant le post final
-- Format identique chaque semaine (l'audience doit reconnaître la structure)
-
-Réponds en français uniquement.
+MOTS INTERDITS :
+"crucial" / "important" / "partager" / "liker" /
+"Dans un monde où" / "Il est essentiel de" /
+"force est de constater" / "paysage des menaces" /
+"acteurs malveillants" / "la sécurité n'est pas un luxe" /
+tout consensus mou / toute conclusion qui rassure sans raison
 """
 
         # Appel LLM en deux étapes

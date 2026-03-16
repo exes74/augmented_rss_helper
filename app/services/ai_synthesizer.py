@@ -126,36 +126,103 @@ FORMAT ATTENDU :
             syntheses_text += f"\n--- Synthèse du {s['date']} ({s['articles_count']} articles) ---\n"
             syntheses_text += s["content"] + "\n"
 
-        # ─── Prompt 1 : Super-synthèse + Faits + Tendances ───
-        prompt_synthese = f"""Tu es un expert en veille informationnelle. \
-Tu disposes des synthèses quotidiennes de la semaine {period} pour la catégorie "{category_name}".
-Ta mission : produire une super-synthèse hebdomadaire à partir de ces synthèses.
+        # ─── Prompt 1 : Super-synthèse (nouveau prompt utilisateur) ───
+        week_start_str = week_start.strftime("%d")
+        week_end_str = week_end.strftime("%d %B %Y")
+        prompt_synthese = f"""Tu es un expert en cybersécurité, style analytique, légèrement impertinent.
+Audience : professionnels cyber (RSSI, analystes, pentesters) avec quelques profils mixtes.
 
-SYNTHÈSES QUOTIDIENNES DE LA SEMAINE ({len(daily_syntheses)} jours, {total_articles} articles au total) :
+Tu reçois {len(daily_syntheses)} synthèses quotidiennes au format suivant :
+- Résumé
+- Points clés (bullets)
+- Tendances observées
+
 {syntheses_text}
 
-CONSIGNES GÉNÉRALES :
-- Langue : français
-- Style professionnel et analytique
-- Citer les sources mentionnées dans les synthèses
-- Ne pas simplement concaténer les synthèses : produire une analyse transversale
+═══ TÂCHE ═══
 
-Génère une réponse structurée avec les 3 sections suivantes, séparées par des marqueurs :
+Produis une métasynthèse hebdomadaire structurée comme suit :
 
-===SYNTHESE===
-[Super-synthèse de la semaine en 400-500 mots. Identifier les fils conducteurs, les événements majeurs, les évolutions du secteur. Aller au-delà de la simple liste des faits : proposer une lecture transversale.]
+---
 
-===FAITS_MARQUANTS===
-[Liste des 5-7 faits marquants de la semaine, extraits des synthèses quotidiennes]
-• [Fait 1 — date — source]
-• [Fait 2 — date — source]
-...
+[TITRE]
+Sobre, factuel, légèrement impertinent.
+Résume la semaine sans l'épuiser.
+Pas de question. Pas d'exclamation. Pas de jeu de mots forcé.
+Exemples de ton acceptable :
+→ "La semaine où l'IA est passée de l'autre côté"
+→ "Quand la surface d'attaque grandit plus vite que les équipes"
 
-===TENDANCES===
-[Liste des 3-5 tendances majeures observées sur la semaine]
-• [Tendance 1 : explication]
-• [Tendance 2 : explication]
-...
+⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str}
+
+[INTRO — 3 lignes max]
+Ce que cette semaine dit du secteur, en une lecture transversale.
+Pas un résumé des 7 jours. Une lecture.
+1 donnée chiffrée si elle est disponible dans les synthèses.
+
+5 FAITS MARQUANTS DE LA SEMAINE
+
+1. [Titre court du fait]
+[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
+
+2. [Titre court du fait]
+[2-3 lignes]
+
+3. [Titre court du fait]
+[2-3 lignes]
+
+4. [Titre court du fait]
+[2-3 lignes]
+
+5. [Titre court du fait]
+[2-3 lignes]
+
+→ Critères de sélection des 5 faits :
+- Impact réel ou potentiel sur les organisations
+- Nouveauté (pas une énième variante d'une menace connue)
+- Révélateur d'une tendance plus large
+- Diversité : ne pas prendre 5 faits du même registre (ex : 5 vulnérabilités)
+
+TENDANCES DE LA SEMAINE
+
+[2-3 tendances, formulées en 2-3 lignes chacune]
+Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
+Formuler ce qui monte, ce qui bascule, ce qui se confirme.
+Impertinence autorisée si le consensus du secteur mérite d'être challengé.
+
+OUVERTURE
+
+[3-4 lignes]
+Pas de conclusion rassurante. Pas de morale.
+Une perspective constructive : ce qui avance, ce qui protège mieux,
+ce qui mérite d'être suivi la semaine prochaine.
+Ton sobre. 1 seule idée forte.
+
+#Cybersécurité #[HashtagNiche1] #[HashtagNiche2] #RSSI
+
+[XXX mots]
+
+═══ CONTRAINTES ═══
+
+FOND :
+- Croiser les {len(daily_syntheses)} synthèses, pas les additionner
+- Les tendances doivent être transversales (au moins 2 synthèses différentes)
+- 0 fait inventé ou extrapolé au-delà des sources
+
+FORME :
+- 450-550 mots strictement (afficher le total)
+- Langue : français intégral, termes techniques en anglais acceptés
+- Aucun emoji sauf ⚡ sur la ligne Cyber Brief
+- 1 saut de ligne entre chaque bloc
+- Les titres de section (5 FAITS, TENDANCES, OUVERTURE)
+  sont visibles dans le post — format sobre, sans décoration
+
+MOTS INTERDITS :
+"crucial" / "important" / "partager" / "liker" /
+"Dans un monde où" / "Il est essentiel de" /
+"force est de constater" / "paysage des menaces" /
+"acteurs malveillants" / "la sécurité n'est pas un luxe" /
+tout consensus mou / toute conclusion qui rassure sans raison
 """
 
         # ─── Prompt 2 : Draft LinkedIn Cyber Brief ───
@@ -244,9 +311,14 @@ Réponds en français uniquement.
         logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
         linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
 
-        # Parser les sections de la synthèse
-        result = self._parse_weekly_response(content_raw)
-        result["draft_linkedin"] = linkedin_raw.strip()
+        # Le nouveau prompt produit un bloc unique structuré (pas de marqueurs ===)
+        # On stocke le contenu complet dans 'content', key_facts et trends restent vides
+        result = {
+            "content": content_raw.strip(),
+            "key_facts": "",
+            "trends": "",
+            "draft_linkedin": linkedin_raw.strip(),
+        }
 
         return result, tokens_1 + tokens_2
 

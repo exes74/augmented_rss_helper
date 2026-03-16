@@ -9,6 +9,29 @@ from email.mime.text import MIMEText
 from typing import List, Optional
 from datetime import date
 
+# Noms des jours et mois en français
+_JOURS_FR = [
+    "lundi", "mardi", "mercredi", "jeudi",
+    "vendredi", "samedi", "dimanche"
+]
+_MOIS_FR = [
+    "janvier", "février", "mars", "avril", "mai", "juin",
+    "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+]
+
+
+def _date_fr(d: date) -> str:
+    """Retourne une date formatée en français, ex : 'lundi 16 mars 2026'."""
+    jour = _JOURS_FR[d.weekday()]
+    mois = _MOIS_FR[d.month - 1]
+    return f"{jour} {d.day} {mois} {d.year}"
+
+
+def _date_short_fr(d: date) -> str:
+    """Retourne une date courte en français, ex : '16 mars 2026'."""
+    mois = _MOIS_FR[d.month - 1]
+    return f"{d.day} {mois} {d.year}"
+
 logger = logging.getLogger(__name__)
 
 
@@ -286,18 +309,27 @@ def send_daily_synthesis_email(
         syntheses_by_category: Liste de dicts {category_name, content, articles_count, articles}
         synthesis_date: Date de la synthèse
     """
-    date_str = synthesis_date.strftime("%A %d %B %Y")
-    subject = f"Synthèse RSS du {date_str}"
+    date_str = _date_fr(synthesis_date)
+    date_short = synthesis_date.strftime("%d/%m/%Y")
+
+    # Sujet : une ligne par catégorie si une seule, sinon générique
+    if len(syntheses_by_category) == 1:
+        cat_name = syntheses_by_category[0]["category_name"]
+        subject = f"Synthèse {cat_name} — {date_short}"
+    else:
+        subject = f"Synthèse RSS du {date_str}"
 
     # Construire le corps HTML des synthèses
     categories_html = ""
     for item in syntheses_by_category:
+        # Sujet/titre par catégorie
+        cat_date_title = f"Synthèse {item['category_name']} — {date_short}"
         # Convertir le Markdown généré par le LLM en HTML propre
         content_html = _markdown_to_html(item["content"])
         categories_html += f"""
         <div style="margin-bottom: 30px; padding: 20px; background: #F9FAFB;
                     border-radius: 8px; border-left: 4px solid #3B82F6;">
-            <h3 style="color: #1F2937; margin-top: 0;">{item['category_name']}</h3>
+            <h3 style="color: #1F2937; margin-top: 0;">{cat_date_title}</h3>
             <p style="color: #6B7280; font-size: 13px; margin-bottom: 15px;">
                 {item.get('articles_count', 0)} article(s) analysé(s)
             </p>
@@ -376,7 +408,7 @@ def send_daily_synthesis_email(
                        color: #1F2937;">
         <div style="background: #3B82F6; padding: 20px; border-radius: 8px 8px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 22px;">
-                Synthèse RSS — {date_str}
+                Synthèse RSS — {date_str.capitalize()}
             </h1>
         </div>
         <div style="padding: 20px; background: white; border: 1px solid #E5E7EB;

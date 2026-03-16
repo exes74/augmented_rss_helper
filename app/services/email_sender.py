@@ -484,32 +484,6 @@ def send_weekly_synthesis_email(
             </div>
             """
 
-        # ─── Section Draft LinkedIn Cyber Brief ───
-        linkedin_html = ""
-        if item.get("draft_linkedin"):
-            # Le draft LinkedIn est du texte brut formaté avec des sauts de ligne
-            # On préserve le format en utilisant white-space: pre-line
-            linkedin_content = item["draft_linkedin"]
-            linkedin_html = f"""
-            <div style="margin-top: 20px; padding: 20px; background: #EFF6FF;
-                        border-radius: 6px; border: 1px solid #BFDBFE;">
-                <h4 style="color: #1D4ED8; margin-top: 0; font-size: 14px;
-                           text-transform: uppercase; letter-spacing: 0.05em;">
-                    ⚡ Draft Cyber Brief LinkedIn
-                </h4>
-                <div style="background: white; border-radius: 4px; padding: 15px;
-                            border: 1px solid #DBEAFE; font-family: -apple-system,
-                            BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                            font-size: 14px; line-height: 1.8; color: #1F2937;
-                            white-space: pre-line;">
-{linkedin_content}
-                </div>
-                <p style="color: #6B7280; font-size: 11px; margin: 8px 0 0 0;">
-                    Copiez ce texte directement dans LinkedIn. Les liens sources sont à poster en 1er commentaire.
-                </p>
-            </div>
-            """
-
         categories_html += f"""
         <div style="margin-bottom: 40px; padding: 20px; background: #F9FAFB;
                     border-radius: 8px; border-left: 4px solid #8B5CF6;">
@@ -520,7 +494,6 @@ def send_weekly_synthesis_email(
             <div style="color: #374151; line-height: 1.7; font-size: 14px;">{content_html}</div>
             {key_facts_html}
             {trends_html}
-            {linkedin_html}
         </div>
         """
 
@@ -535,8 +508,7 @@ def send_weekly_synthesis_email(
         <div style="padding: 20px; background: white; border: 1px solid #E5E7EB;
                     border-top: none; border-radius: 0 0 8px 8px;">
             <p>Bonjour,</p>
-            <p>Voici votre synthèse de veille RSS de la semaine, avec les drafts de posts
-               LinkedIn prêts à utiliser.</p>
+            <p>Voici votre synthèse de veille RSS de la semaine.</p>
             {categories_html}
             <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 20px 0;">
             <p style="color: #9CA3AF; font-size: 12px;">

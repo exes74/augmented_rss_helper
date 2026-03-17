@@ -284,7 +284,10 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
         if target_date_str:
             target_date = date.fromisoformat(target_date_str)
         else:
-            target_date = date.today()
+            # En mode automatique (sans date cible), on synthétise la VEILLE
+            # car la tâche tourne à 7h du matin et les articles de la veille
+            # sont ceux qui ont été publiés le jour précédent
+            target_date = date.today() - timedelta(days=1)
 
         logger.info(f"Génération des synthèses quotidiennes pour le {target_date}")
 
@@ -579,11 +582,15 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
 
             daily_cats = prefs.get("daily_categories", [])
 
+            # CORRECTION BUG 2 : filtrer par period_start (date des articles synthétisés)
+            # et non par generated_at (date de génération de la synthèse)
+            # Ainsi un envoi forcé sur 2026-03-16 trouve bien la synthèse
+            # générée le 17/03 mais couvrant les articles du 16/03
             query = Synthesis.query.filter_by(
                 user_id=user.id, type=Synthesis.TYPE_DAILY
             ).filter(
-                Synthesis.generated_at >= day_start,
-                Synthesis.generated_at < day_end,
+                Synthesis.period_start >= day_start,
+                Synthesis.period_start < day_end,
             )
             if not force:
                 query = query.filter(Synthesis.email_sent == False)

@@ -77,17 +77,25 @@ def index():
         .all()
     )
 
-    # Tableau articles par source sur 7 jours
-    from datetime import timedelta
-    from sqlalchemy import func
+    # Tableau articles par source sur 7 jours — pivot par jour
+    from datetime import timedelta, date as date_type
+    from sqlalchemy import func, cast, Date
     from models.category import Category
+
+    today_utc = datetime.now(timezone.utc).date()
+    # Colonnes J-6 → J (7 jours, J = aujourd'hui)
+    day_labels = [today_utc - timedelta(days=i) for i in range(6, -1, -1)]
     seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    articles_by_source = (
+
+    # Requête brute : (feed_id, feed_name, feed_url, category_name, published_date, count)
+    raw_rows = (
         db.session.query(
+            Feed.id.label('feed_id'),
             Feed.name.label('feed_name'),
             Feed.url.label('feed_url'),
             Category.name.label('category_name'),
-            func.count(Article.id).label('article_count'),
+            cast(Article.published_at, Date).label('pub_date'),
+            func.count(Article.id).label('cnt'),
             func.max(Article.published_at).label('last_article')
         )
         .join(Article, Article.feed_id == Feed.id)
@@ -96,10 +104,44 @@ def index():
             Feed.user_id == current_user.id,
             Article.published_at >= seven_days_ago
         )
-        .group_by(Feed.id, Feed.name, Feed.url, Category.name)
-        .order_by(func.count(Article.id).desc())
+        .group_by(Feed.id, Feed.name, Feed.url, Category.name,
+                  cast(Article.published_at, Date))
         .all()
     )
+
+    # Pivot en Python : {feed_id: {day: count, ...}}
+    from collections import defaultdict
+    pivot = defaultdict(lambda: {
+        'feed_name': '', 'feed_url': '', 'category_name': '',
+        'days': defaultdict(int), 'last_article': None
+    })
+    for row in raw_rows:
+        p = pivot[row.feed_id]
+        p['feed_name'] = row.feed_name
+        p['feed_url'] = row.feed_url
+        p['category_name'] = row.category_name
+        p['days'][row.pub_date] += row.cnt
+        if p['last_article'] is None or (row.last_article and row.last_article > p['last_article']):
+            p['last_article'] = row.last_article
+
+    # Construire la liste finale triée par total décroissant
+    articles_by_source = []
+    for feed_id, data in pivot.items():
+        day_counts = [data['days'].get(d, 0) for d in day_labels]
+        total = sum(day_counts)
+        articles_by_source.append({
+            'feed_name': data['feed_name'],
+            'feed_url': data['feed_url'],
+            'category_name': data['category_name'],
+            'day_counts': day_counts,
+            'total': total,
+            'last_article': data['last_article'],
+        })
+    articles_by_source.sort(key=lambda x: x['total'], reverse=True)
+
+    # Totaux par colonne
+    col_totals = [sum(r['day_counts'][i] for r in articles_by_source) for i in range(7)]
+    grand_total = sum(col_totals)
 
     # État Celery
     celery_status = _check_celery_status()
@@ -111,6 +153,9 @@ def index():
         recent_syntheses=recent_syntheses,
         celery_status=celery_status,
         articles_by_source=articles_by_source,
+        day_labels=day_labels,
+        col_totals=col_totals,
+        grand_total=grand_total,
         today=date.today().isoformat(),
     )
 

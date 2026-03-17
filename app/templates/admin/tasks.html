@@ -258,37 +258,56 @@
     <h3 class="font-semibold text-gray-800 mb-1">📊 Articles publiés par source — 7 derniers jours</h3>
     <p class="text-xs text-gray-400 mb-3">Basé sur la date de publication des articles (non la date de collecte).</p>
     <div class="overflow-x-auto">
-      <table class="w-full text-sm">
+      <table class="w-full text-xs border-collapse">
         <thead>
-          <tr class="text-left text-gray-500 border-b">
-            <th class="pb-2 pr-4">Source</th>
-            <th class="pb-2 pr-4">Catégorie</th>
-            <th class="pb-2 pr-4 text-right">Articles</th>
-            <th class="pb-2 text-right">Dernier article</th>
+          <tr class="bg-gray-50 text-gray-500 border-b-2 border-gray-200">
+            <th class="py-2 px-3 text-left font-semibold">Source</th>
+            <th class="py-2 px-3 text-left font-semibold">Catégorie</th>
+            {% for d in day_labels %}
+            <th class="py-2 px-2 text-center font-semibold whitespace-nowrap"
+                title="{{ d.strftime('%d/%m/%Y') }}">
+              {% if d == day_labels[-1] %}
+                <span class="text-blue-600">J</span>
+              {% else %}
+                J-{{ loop.revindex0 }}
+              {% endif %}
+              <div class="text-gray-400 font-normal">{{ d.strftime('%d/%m') }}</div>
+            </th>
+            {% endfor %}
+            <th class="py-2 px-3 text-center font-bold text-gray-700 border-l border-gray-200">Total</th>
+            <th class="py-2 px-3 text-right font-semibold">Dernier article</th>
           </tr>
         </thead>
         <tbody>
           {% for row in articles_by_source %}
-          <tr class="border-b border-gray-50 hover:bg-gray-50">
-            <td class="py-2 pr-4 font-medium text-gray-800 max-w-xs truncate">
+          <tr class="border-b border-gray-100 hover:bg-blue-50 transition-colors">
+            <td class="py-2 px-3 font-medium text-gray-800 max-w-[180px] truncate">
               <a href="{{ row.feed_url }}" target="_blank"
                  class="hover:text-blue-600 hover:underline" title="{{ row.feed_url }}">
                 {{ row.feed_name }}
               </a>
             </td>
-            <td class="py-2 pr-4">
+            <td class="py-2 px-3">
               {% if row.category_name %}
-              <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">
+              <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
                 {{ row.category_name }}
               </span>
               {% else %}
-              <span class="text-gray-400 text-xs">—</span>
+              <span class="text-gray-300">—</span>
               {% endif %}
             </td>
-            <td class="py-2 pr-4 text-right">
-              <span class="font-semibold text-gray-900">{{ row.article_count }}</span>
+            {% for cnt in row.day_counts %}
+            <td class="py-2 px-2 text-center
+              {% if cnt == 0 %}text-gray-300
+              {% elif cnt >= 10 %}text-green-700 font-semibold
+              {% else %}text-gray-700{% endif %}">
+              {{ cnt if cnt > 0 else '—' }}
             </td>
-            <td class="py-2 text-right text-gray-500 text-xs">
+            {% endfor %}
+            <td class="py-2 px-3 text-center font-bold text-gray-900 border-l border-gray-200">
+              {{ row.total }}
+            </td>
+            <td class="py-2 px-3 text-right text-gray-400 whitespace-nowrap">
               {% if row.last_article %}
                 {{ row.last_article.strftime('%d/%m %H:%M') }}
               {% else %}
@@ -299,10 +318,13 @@
           {% endfor %}
         </tbody>
         <tfoot>
-          <tr class="border-t-2 border-gray-200">
-            <td class="pt-2 font-semibold text-gray-700" colspan="2">Total</td>
-            <td class="pt-2 text-right font-bold text-gray-900">
-              {{ articles_by_source | sum(attribute='article_count') }}
+          <tr class="border-t-2 border-gray-300 bg-gray-50 font-semibold text-gray-700">
+            <td class="py-2 px-3" colspan="2">Total</td>
+            {% for ct in col_totals %}
+            <td class="py-2 px-2 text-center text-gray-800">{{ ct if ct > 0 else '—' }}</td>
+            {% endfor %}
+            <td class="py-2 px-3 text-center font-bold text-blue-700 text-sm border-l border-gray-200">
+              {{ grand_total }}
             </td>
             <td></td>
           </tr>

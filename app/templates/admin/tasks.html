@@ -252,6 +252,66 @@
   </div>
   {% endif %}
 
+  <!-- Articles par source sur 7 jours -->
+  {% if articles_by_source %}
+  <div class="bg-white rounded-lg shadow p-5 mb-6">
+    <h3 class="font-semibold text-gray-800 mb-1">📊 Articles publiés par source — 7 derniers jours</h3>
+    <p class="text-xs text-gray-400 mb-3">Basé sur la date de publication des articles (non la date de collecte).</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-left text-gray-500 border-b">
+            <th class="pb-2 pr-4">Source</th>
+            <th class="pb-2 pr-4">Catégorie</th>
+            <th class="pb-2 pr-4 text-right">Articles</th>
+            <th class="pb-2 text-right">Dernier article</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in articles_by_source %}
+          <tr class="border-b border-gray-50 hover:bg-gray-50">
+            <td class="py-2 pr-4 font-medium text-gray-800 max-w-xs truncate">
+              <a href="{{ row.feed_url }}" target="_blank"
+                 class="hover:text-blue-600 hover:underline" title="{{ row.feed_url }}">
+                {{ row.feed_name }}
+              </a>
+            </td>
+            <td class="py-2 pr-4">
+              {% if row.category_name %}
+              <span class="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs">
+                {{ row.category_name }}
+              </span>
+              {% else %}
+              <span class="text-gray-400 text-xs">—</span>
+              {% endif %}
+            </td>
+            <td class="py-2 pr-4 text-right">
+              <span class="font-semibold text-gray-900">{{ row.article_count }}</span>
+            </td>
+            <td class="py-2 text-right text-gray-500 text-xs">
+              {% if row.last_article %}
+                {{ row.last_article.strftime('%d/%m %H:%M') }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="border-t-2 border-gray-200">
+            <td class="pt-2 font-semibold text-gray-700" colspan="2">Total</td>
+            <td class="pt-2 text-right font-bold text-gray-900">
+              {{ articles_by_source | sum(attribute='article_count') }}
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Dernières synthèses -->
   {% if recent_syntheses %}
   <div class="bg-white rounded-lg shadow p-5">

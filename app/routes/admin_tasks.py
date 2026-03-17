@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 from flask import (Blueprint, render_template, redirect, url_for,
                    flash, request, jsonify, current_app)
 from flask_login import login_required, current_user
+from main import db
 
 logger = logging.getLogger(__name__)
 admin_tasks_bp = Blueprint("admin_tasks", __name__, url_prefix="/admin/tasks")
@@ -76,6 +77,30 @@ def index():
         .all()
     )
 
+    # Tableau articles par source sur 7 jours
+    from datetime import timedelta
+    from sqlalchemy import func
+    from models.category import Category
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    articles_by_source = (
+        db.session.query(
+            Feed.name.label('feed_name'),
+            Feed.url.label('feed_url'),
+            Category.name.label('category_name'),
+            func.count(Article.id).label('article_count'),
+            func.max(Article.published_at).label('last_article')
+        )
+        .join(Article, Article.feed_id == Feed.id)
+        .outerjoin(Category, Feed.category_id == Category.id)
+        .filter(
+            Feed.user_id == current_user.id,
+            Article.published_at >= seven_days_ago
+        )
+        .group_by(Feed.id, Feed.name, Feed.url, Category.name)
+        .order_by(func.count(Article.id).desc())
+        .all()
+    )
+
     # État Celery
     celery_status = _check_celery_status()
 
@@ -85,6 +110,7 @@ def index():
         recent_feeds=recent_feeds,
         recent_syntheses=recent_syntheses,
         celery_status=celery_status,
+        articles_by_source=articles_by_source,
         today=date.today().isoformat(),
     )
 

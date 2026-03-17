@@ -117,6 +117,17 @@ def create_app(config_name: str = None) -> Flask:
 
     app.jinja_env.filters['markdown'] = _md_to_html
 
+    # ─── Filtre Jinja2 : JSON string → Python list ───────────────────────
+    import json as _json
+    def _fromjson(value):
+        if not value:
+            return []
+        try:
+            return _json.loads(value)
+        except Exception:
+            return []
+    app.jinja_env.filters['fromjson'] = _fromjson
+
     # ─── Route racine ─────────────────────────────────────────────────────
     @app.route("/")
     def index():

@@ -1,6 +1,7 @@
 """
 Routes des préférences et paramètres utilisateur.
 """
+import json
 import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_required, current_user
@@ -93,17 +94,22 @@ def add_subscription():
         flash("Cet email est déjà abonné.", "warning")
         return redirect(url_for("settings.index"))
 
+    # Catégories sélectionnées pour cet abonné
+    selected_cats = request.form.getlist("sub_categories")
+    cats_json = json.dumps([int(c) for c in selected_cats if c.isdigit()]) if selected_cats else None
+
     sub = Subscription(
         owner_user_id=current_user.id,
         subscriber_email=email,
         receive_daily=request.form.get("receive_daily") == "on",
         receive_weekly=request.form.get("receive_weekly") == "on",
+        categories=cats_json,
     )
     db.session.add(sub)
     db.session.commit()
 
     flash(f"Abonné {email} ajouté.", "success")
-    logger.info(f"Abonné ajouté : {email} pour user={current_user.id}")
+    logger.info(f"Abonné ajouté : {email} pour user={current_user.id}, catégories={cats_json}")
     return redirect(url_for("settings.index"))
 
 
@@ -118,4 +124,23 @@ def delete_subscription(sub_id: int):
     db.session.delete(sub)
     db.session.commit()
     flash(f"Abonné {email} supprimé.", "success")
+    return redirect(url_for("settings.index"))
+
+
+@settings_bp.route("/subscriptions/<int:sub_id>/edit", methods=["POST"])
+@login_required
+def edit_subscription(sub_id: int):
+    """Mise à jour des catégories et préférences d'un abonné."""
+    sub = Subscription.query.filter_by(
+        id=sub_id, owner_user_id=current_user.id
+    ).first_or_404()
+
+    sub.receive_daily = request.form.get("receive_daily") == "on"
+    sub.receive_weekly = request.form.get("receive_weekly") == "on"
+
+    selected_cats = request.form.getlist("sub_categories")
+    sub.categories = json.dumps([int(c) for c in selected_cats if c.isdigit()]) if selected_cats else None
+
+    db.session.commit()
+    flash(f"Abonné {sub.subscriber_email} mis à jour.", "success")
     return redirect(url_for("settings.index"))

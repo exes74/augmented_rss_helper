@@ -585,33 +585,30 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
                 Synthesis.generated_at >= day_start,
                 Synthesis.generated_at < day_end,
             )
-            # En mode normal, ne renvoyer que les emails non encore envoyés
-            # En mode force, renvoyer même les synthèses déjà envoyées
             if not force:
                 query = query.filter(Synthesis.email_sent == False)
-
             if daily_cats:
                 query = query.filter(Synthesis.category_id.in_(daily_cats))
 
             syntheses = query.all()
-
             if not syntheses:
                 continue
 
-            syntheses_data = []
+            from models.article import Article
+            from models.feed import Feed
+
+            # ─── Un email PAR catégorie ───────────────────────────────────
             for s in syntheses:
                 cat_name = s.category.name if s.category else "Général"
+                cat_id = s.category_id
 
-                # Récupérer les articles bruts pour la section sources
-                from models.article import Article
-                from models.feed import Feed
-                # Filtrer par published_at pour cohérence avec la synthèse
+                # Articles sources pour cette catégorie
                 articles_raw = (
                     db.session.query(Article)
                     .join(Article.feed)
                     .filter(
                         Feed.user_id == user.id,
-                        Feed.category_id == s.category_id,
+                        Feed.category_id == cat_id,
                         Article.published_at >= day_start,
                         Article.published_at < day_end,
                     )
@@ -628,35 +625,51 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
                     for a in articles_raw
                 ]
 
-                syntheses_data.append({
+                synthesis_data = [{
                     "category_name": cat_name,
                     "content": s.content or "",
                     "articles_count": s.articles_count,
                     "articles": articles_list,
-                })
+                }]
 
-            to_emails = [user.email]
-            subs = Subscription.query.filter_by(
-                owner_user_id=user.id, receive_daily=True
-            ).all()
-            to_emails.extend([s.subscriber_email for s in subs])
+                # Destinataires : utilisateur + abonnés filtrés par catégorie
+                to_emails = [user.email]
+                subs = Subscription.query.filter_by(
+                    owner_user_id=user.id, receive_daily=True
+                ).all()
+                for sub in subs:
+                    # Si l'abonné a des catégories configurées, vérifier l'inclusion
+                    import json
+                    sub_cats = []
+                    if sub.categories:
+                        try:
+                            sub_cats = json.loads(sub.categories)
+                        except Exception:
+                            sub_cats = []
+                    # Inclure si pas de filtre catégorie ou si catégorie dans la liste
+                    if not sub_cats or cat_id in sub_cats:
+                        to_emails.append(sub.subscriber_email)
 
-            try:
-                success = send_daily_synthesis_email(
-                    to_emails, user.email, syntheses_data, target_date
-                )
-                if success:
-                    for s in syntheses:
+                try:
+                    success = send_daily_synthesis_email(
+                        to_emails, user.email, synthesis_data, target_date
+                    )
+                    if success:
                         s.email_sent = True
                         s.email_sent_at = datetime.now(timezone.utc)
-                    db.session.commit()
-                    stats["emails_sent"] += 1
-                    logger.info(f"Email quotidien envoyé à {user.email} + {len(subs)} abonnés")
-                else:
+                        db.session.commit()
+                        stats["emails_sent"] += 1
+                        logger.info(
+                            f"Email quotidien [{cat_name}] envoyé à {user.email} "
+                            f"+ {len(to_emails)-1} abonnés"
+                        )
+                    else:
+                        stats["errors"] += 1
+                except Exception as e:
+                    logger.error(
+                        f"Erreur envoi email quotidien [{cat_name}] user={user.id}: {e}"
+                    )
                     stats["errors"] += 1
-            except Exception as e:
-                logger.error(f"Erreur envoi email quotidien user={user.id}: {e}")
-                stats["errors"] += 1
 
         logger.info(f"Emails quotidiens : {stats['emails_sent']} envoyés, {stats['errors']} erreurs")
         return stats

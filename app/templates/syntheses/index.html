@@ -38,16 +38,16 @@
     {% if syntheses.items %}
     <div class="space-y-4">
         {% for synthesis in syntheses.items %}
-        <a href="{{ url_for('syntheses.detail', synthesis_id=synthesis.id) }}"
-           class="block bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300
-                  hover:shadow-sm transition-all">
-            <div class="flex items-start justify-between">
-                <div class="flex items-start space-x-3">
-                    <span class="text-2xl mt-0.5">
+        <div class="bg-white rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all">
+            <div class="flex items-start justify-between p-5">
+                <!-- Lien vers le détail -->
+                <a href="{{ url_for('syntheses.detail', synthesis_id=synthesis.id) }}"
+                   class="flex items-start space-x-3 flex-1 min-w-0">
+                    <span class="text-2xl mt-0.5 flex-shrink-0">
                         {% if synthesis.is_weekly %}📊{% else %}📰{% endif %}
                     </span>
-                    <div>
-                        <div class="flex items-center space-x-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center flex-wrap gap-2">
                             <span class="font-semibold text-gray-900">
                                 {% if synthesis.category %}{{ synthesis.category.name }}{% else %}Général{% endif %}
                             </span>
@@ -69,7 +69,8 @@
                         </div>
                         {% endif %}
                     </div>
-                </div>
+                </a>
+                <!-- Métadonnées + bouton supprimer -->
                 <div class="text-right text-xs text-gray-400 ml-4 flex-shrink-0 space-y-1">
                     {% if synthesis.generated_at %}
                     <div class="font-medium text-gray-500">
@@ -86,9 +87,22 @@
                     {% if synthesis.is_weekly and synthesis.draft_linkedin %}
                     <div class="text-blue-500">⚡ Cyber Brief</div>
                     {% endif %}
+                    <!-- Bouton supprimer -->
+                    <div class="pt-2">
+                        <form method="POST"
+                              action="{{ url_for('syntheses.delete', synthesis_id=synthesis.id) }}"
+                              onsubmit="return confirm('Supprimer cette synthèse définitivement ?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                    class="text-xs px-2.5 py-1 rounded border border-red-200 text-red-500
+                                           hover:bg-red-50 hover:text-red-700 transition-colors">
+                                Supprimer
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
-        </a>
+        </div>
         {% endfor %}
     </div>
 

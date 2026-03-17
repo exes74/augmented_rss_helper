@@ -44,27 +44,48 @@
 
     <!-- Liste des flux -->
     {% if feeds %}
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <table class="w-full text-sm">
+    <div class="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <table id="feeds-table" class="w-full text-sm table-fixed">
+            <colgroup>
+                <col style="width: 28%">   <!-- Flux -->
+                <col style="width: 13%">   <!-- Catégorie -->
+                <col style="width: 11%">   <!-- Dernière collecte -->
+                <col style="width: 8%">    <!-- Statut -->
+                <col style="width: 9%">    <!-- Articles -->
+                <col style="width: 31%">   <!-- Actions -->
+            </colgroup>
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
-                    <th class="text-left px-4 py-3 font-medium text-gray-700">Flux</th>
-                    <th class="text-left px-4 py-3 font-medium text-gray-700 hidden md:table-cell">Catégorie</th>
-                    <th class="text-left px-4 py-3 font-medium text-gray-700 hidden lg:table-cell">Dernière collecte</th>
-                    <th class="text-left px-4 py-3 font-medium text-gray-700">Statut</th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 cursor-pointer select-none sortable" data-col="0">
+                        Flux <span class="sort-icon text-gray-400 ml-1">⇅</span>
+                    </th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 cursor-pointer select-none sortable" data-col="1">
+                        Catégorie <span class="sort-icon text-gray-400 ml-1">⇅</span>
+                    </th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 cursor-pointer select-none sortable" data-col="2">
+                        Dernière collecte <span class="sort-icon text-gray-400 ml-1">⇅</span>
+                    </th>
+                    <th class="text-left px-4 py-3 font-medium text-gray-700 cursor-pointer select-none sortable" data-col="3">
+                        Statut <span class="sort-icon text-gray-400 ml-1">⇅</span>
+                    </th>
+                    <th class="text-center px-4 py-3 font-medium text-gray-700 cursor-pointer select-none sortable" data-col="4">
+                        Articles <span class="sort-icon text-gray-400 ml-1">⇅</span>
+                    </th>
                     <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for feed in feeds %}
                 <tr class="hover:bg-gray-50 {% if not feed.active %}opacity-60{% endif %}">
+                    <!-- Flux -->
                     <td class="px-4 py-3">
-                        <div class="font-medium text-gray-900">{{ feed.display_name }}</div>
-                        <div class="text-xs text-gray-400 truncate max-w-xs">{{ feed.url }}</div>
+                        <div class="font-medium text-gray-900 truncate" title="{{ feed.display_name }}">{{ feed.display_name }}</div>
+                        <div class="text-xs text-gray-400 truncate" title="{{ feed.url }}">{{ feed.url }}</div>
                     </td>
-                    <td class="px-4 py-3 hidden md:table-cell">
+                    <!-- Catégorie -->
+                    <td class="px-4 py-3" data-sort="{{ feed.category.name if feed.category else '' }}">
                         {% if feed.category %}
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
                               style="background-color: {{ feed.category.color }}20; color: {{ feed.category.color }}">
                             {{ feed.category.name }}
                         </span>
@@ -72,15 +93,18 @@
                         <span class="text-gray-400">—</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-3 hidden lg:table-cell text-gray-500">
+                    <!-- Dernière collecte -->
+                    <td class="px-4 py-3 text-gray-500 whitespace-nowrap"
+                        data-sort="{{ feed.last_fetched.strftime('%Y%m%d%H%M') if feed.last_fetched else '000000' }}">
                         {% if feed.last_fetched %}
                         {{ feed.last_fetched.strftime('%d/%m %H:%M') }}
                         {% else %}
                         <span class="text-gray-400">Jamais</span>
                         {% endif %}
                     </td>
-                    <td class="px-4 py-3">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                    <!-- Statut -->
+                    <td class="px-4 py-3" data-sort="{{ feed.status }}">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap
                                      {% if feed.status == 'active' %}bg-green-100 text-green-700
                                      {% elif feed.status == 'error' %}bg-orange-100 text-orange-700
                                      {% elif feed.status == 'dead' %}bg-red-100 text-red-700
@@ -91,32 +115,30 @@
                             {% else %}○ Pausé{% endif %}
                         </span>
                     </td>
-                    <td class="px-4 py-3 text-right">
-                        <div class="flex items-center justify-end space-x-2">
-                            <!-- Voir les articles -->
-                            <a href="{{ url_for('feeds.articles', feed_id=feed.id) }}"
-                               class="text-xs px-2 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                               title="Voir les articles collectés">
-                                Articles
-                                {% if feed.articles_count %}
-                                <span class="ml-1 bg-indigo-100 text-indigo-700 rounded-full px-1.5 py-0.5 text-xs">
-                                    {{ feed.articles_count }}
-                                </span>
-                                {% endif %}
-                            </a>
+                    <!-- Nb Articles -->
+                    <td class="px-4 py-3 text-center" data-sort="{{ feed.articles_count or 0 }}">
+                        <a href="{{ url_for('feeds.articles', feed_id=feed.id) }}"
+                           class="inline-flex flex-col items-center px-2 py-1 rounded border border-indigo-200 text-indigo-600 hover:bg-indigo-50 leading-tight"
+                           title="Voir les articles collectés">
+                            <span class="text-xs font-medium">Articles</span>
+                            <span class="text-sm font-bold text-indigo-700">{{ feed.articles_count or 0 }}</span>
+                        </a>
+                    </td>
+                    <!-- Actions -->
+                    <td class="px-4 py-3">
+                        <div class="flex items-center justify-end gap-1.5">
                             <!-- Toggle actif/inactif -->
-                            <form method="POST" action="{{ url_for('feeds.toggle', feed_id=feed.id) }}"
-                                  class="inline">
+                            <form method="POST" action="{{ url_for('feeds.toggle', feed_id=feed.id) }}" class="inline">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
-                                        class="text-xs px-2 py-1 rounded border
+                                        class="text-xs px-2.5 py-1.5 rounded border whitespace-nowrap
                                                {% if feed.active %}border-gray-200 text-gray-600 hover:bg-gray-50
                                                {% else %}border-green-200 text-green-600 hover:bg-green-50{% endif %}">
                                     {% if feed.active %}Désactiver{% else %}Activer{% endif %}
                                 </button>
                             </form>
                             <a href="{{ url_for('feeds.edit', feed_id=feed.id) }}"
-                               class="text-xs px-2 py-1 rounded border border-blue-200 text-blue-600 hover:bg-blue-50">
+                               class="text-xs px-2.5 py-1.5 rounded border border-blue-200 text-blue-600 hover:bg-blue-50 whitespace-nowrap">
                                 Modifier
                             </a>
                             <form method="POST" action="{{ url_for('feeds.delete', feed_id=feed.id) }}"
@@ -124,7 +146,7 @@
                                   onsubmit="return confirm('Supprimer ce flux et tous ses articles ?')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit"
-                                        class="text-xs px-2 py-1 rounded border border-red-200 text-red-600 hover:bg-red-50">
+                                        class="text-xs px-2.5 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 whitespace-nowrap">
                                     Supprimer
                                 </button>
                             </form>
@@ -148,4 +170,48 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+// Tri des colonnes du tableau
+(function () {
+    const table = document.getElementById('feeds-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    let sortCol = -1;
+    let sortAsc = true;
+
+    table.querySelectorAll('th.sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const col = parseInt(th.dataset.col);
+            if (sortCol === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortCol = col;
+                sortAsc = true;
+            }
+
+            // Mise à jour des icônes
+            table.querySelectorAll('th.sortable .sort-icon').forEach(ic => ic.textContent = '⇅');
+            th.querySelector('.sort-icon').textContent = sortAsc ? '↑' : '↓';
+
+            // Tri des lignes
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            rows.sort((a, b) => {
+                const cellA = a.querySelectorAll('td')[col];
+                const cellB = b.querySelectorAll('td')[col];
+                const valA = (cellA.dataset.sort !== undefined ? cellA.dataset.sort : cellA.textContent).trim().toLowerCase();
+                const valB = (cellB.dataset.sort !== undefined ? cellB.dataset.sort : cellB.textContent).trim().toLowerCase();
+                // Tri numérique si possible
+                const numA = parseFloat(valA);
+                const numB = parseFloat(valB);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return sortAsc ? numA - numB : numB - numA;
+                }
+                return sortAsc ? valA.localeCompare(valB, 'fr') : valB.localeCompare(valA, 'fr');
+            });
+            rows.forEach(r => tbody.appendChild(r));
+        });
+    });
+})();
+</script>
 {% endblock %}

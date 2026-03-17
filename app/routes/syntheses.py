@@ -2,9 +2,10 @@
 Routes de consultation des synthèses IA.
 """
 import logging
-from flask import Blueprint, render_template, request, abort
+from flask import Blueprint, render_template, request, abort, redirect, url_for, flash
 from flask_login import login_required, current_user
 
+from extensions import db
 from models.synthesis import Synthesis
 from models.category import Category
 
@@ -54,3 +55,19 @@ def detail(synthesis_id: int):
     ).first_or_404()
 
     return render_template("syntheses/detail.html", synthesis=synthesis)
+
+
+@syntheses_bp.route("/<int:synthesis_id>/delete", methods=["POST"])
+@login_required
+def delete(synthesis_id: int):
+    """Suppression d'une synthèse."""
+    synthesis = Synthesis.query.filter_by(
+        id=synthesis_id, user_id=current_user.id
+    ).first_or_404()
+
+    label = f"{synthesis.type} — {synthesis.period_start.strftime('%d/%m/%Y') if synthesis.period_start else synthesis.generated_at.strftime('%d/%m/%Y')}"
+    db.session.delete(synthesis)
+    db.session.commit()
+    logger.info(f"Synthèse #{synthesis_id} supprimée par {current_user.email} ({label})")
+    flash(f"Synthèse supprimée : {label}", "success")
+    return redirect(url_for("syntheses.index"))

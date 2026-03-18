@@ -255,12 +255,20 @@ FOND :
 - Les tendances doivent être transversales (au moins 2 synthèses différentes)
 - 0 fait inventé ou extrapolé au-delà des sources
 
-FORME :
-- 3000 Caractères maximum  AU TOTAL(afficher le total) - recompter les caractères en fin d'exercice et restructurer si supérieur à 3000 caractères
+
+FORME — BUDGETS STRICTS :
+- Titre : 1 ligne
+- Intro : 4-5 phrases = ~400 caractères
+- Tendances : 2-3 × 2 phrases = ~450 caractères  
+- Faits marquants : 5 × 2 phrases = ~900 caractères
+- Ce qu'on en pense : 3-4 phrases = ~350 caractères
+- Hashtags : 1 ligne
 - Langue : français intégral, termes techniques en anglais acceptés
 - Aucun emoji sauf ⚡ sur la ligne Cyber Brief
 - 1 saut de ligne entre chaque bloc
 - Les titres de section (Les tendances, Les faits marquants, Ce qu'on en pense) sont visibles dans le post — format sobre, en gras
+─────────────────────────────
+TOTAL CIBLE : 2600–3000 caractères
 
 MOTS INTERDITS :
 "crucial" / "important" / "partager" / "liker" /
@@ -272,10 +280,10 @@ tout consensus mou / toute conclusion qui rassure sans raison
 
         # Appel LLM en deux étapes
         logger.info(f"Super-synthèse hebdo — étape 1 : synthèse + faits + tendances")
-        content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=2000)
+        content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=3000)
         if category_name == 'CyberSecurity':
             logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
-            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=10000)
+            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1200)
         else:
              linkedin_raw, tokens_2 = '',0
         # Parser les sections de la synthèse

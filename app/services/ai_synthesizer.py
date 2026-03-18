@@ -228,10 +228,7 @@ Les faits marquants
 4. [Titre court du fait]
 [1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
 
-5. [Titre court du fait]
-[1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
-
-→ Critères de sélection des 5 faits :
+→ Critères de sélection des 4 faits :
 - Impact réel ou potentiel sur les organisations
 - Nouveauté (pas une énième variante d'une menace connue)
 - Révélateur d'une tendance plus large
@@ -240,7 +237,7 @@ Les faits marquants
 
 Ce qu'on en pense
 
-[3-4 phrases]
+[2-3 phrases]
 Pas de conclusion rassurante. Pas de morale.
 Une perspective constructive : ce qui avance, ce qui protège mieux,
 ce qui mérite d'être suivi la semaine prochaine.
@@ -258,10 +255,10 @@ FOND :
 
 FORME — BUDGETS STRICTS :
 - Titre : 1 ligne
-- Intro : 4-5 phrases = ~400 caractères
-- Tendances : 2-3 × 2 phrases = ~450 caractères  
-- Faits marquants : 5 × 2 phrases = ~900 caractères
-- Ce qu'on en pense : 3-4 phrases = ~350 caractères
+- Intro : 4-5 phrases = ~300 caractères
+- Tendances : 2-3 × 2 phrases = ~350 caractères  
+- Faits marquants : 5 × 2 phrases = ~700 caractères
+- Ce qu'on en pense : 3-4 phrases = ~300 caractères
 - Hashtags : 1 ligne
 - Langue : français intégral, termes techniques en anglais acceptés
 - Aucun emoji sauf ⚡ sur la ligne Cyber Brief

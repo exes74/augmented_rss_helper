@@ -283,7 +283,7 @@ tout consensus mou / toute conclusion qui rassure sans raison
         content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=3000)
         if category_name == 'CyberSecurity':
             logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
-            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1200)
+            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
         else:
              linkedin_raw, tokens_2 = '',0
         # Parser les sections de la synthèse

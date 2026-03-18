@@ -207,6 +207,54 @@
 
   </div>
 
+  <!-- Suppression de synthèses par date -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6 border-l-4 border-red-400">
+    <h2 class="text-lg font-semibold text-gray-800 mb-1">🗑️ Supprimer des synthèses par date</h2>
+    <p class="text-sm text-gray-500 mb-4">
+      Supprime définitivement les synthèses générées un jour précis.
+      Utile pour forcer une régénération propre sans doublon.
+    </p>
+    <form method="POST" action="{{ url_for('admin_tasks.delete_syntheses') }}"
+          onsubmit="return confirm('Confirmer la suppression des synthèses sélectionnées ?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="flex flex-wrap items-end gap-4">
+        <!-- Sélecteur de date -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-gray-600">Date de génération</label>
+          <input type="date" name="target_date"
+            value="{{ today }}"
+            class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-red-400">
+        </div>
+        <!-- Sélecteur de type -->
+        <div class="flex flex-col gap-1">
+          <label class="text-xs font-medium text-gray-600">Type de synthèse</label>
+          <div class="flex gap-2">
+            <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+              <input type="radio" name="synth_type" value="all" checked
+                class="accent-red-500">
+              <span>Toutes</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+              <input type="radio" name="synth_type" value="daily"
+                class="accent-red-500">
+              <span>Quotidiennes</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+              <input type="radio" name="synth_type" value="weekly"
+                class="accent-red-500">
+              <span>Hebdomadaires</span>
+            </label>
+          </div>
+        </div>
+        <!-- Bouton -->
+        <button type="submit"
+          class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-5 rounded-lg transition text-sm whitespace-nowrap">
+          🗑️ Supprimer
+        </button>
+      </div>
+    </form>
+  </div>
+
   <!-- Derniers flux collectés -->
   {% if recent_feeds %}
   <div class="bg-white rounded-lg shadow p-5 mb-6">

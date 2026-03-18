@@ -286,6 +286,77 @@ def run_enrich_articles():
     return redirect(url_for("admin_tasks.index"))
 
 
+@admin_tasks_bp.route("/delete-syntheses", methods=["POST"])
+@login_required
+@admin_required
+def delete_syntheses():
+    """
+    Supprime les synthèses d'un jour donné pour l'utilisateur courant.
+    Paramètres POST :
+      - target_date : date au format YYYY-MM-DD
+      - synth_type  : 'all' | 'daily' | 'weekly'
+    """
+    from models.synthesis import Synthesis
+    from datetime import timedelta
+
+    target_date_str = request.form.get("target_date", "")
+    synth_type = request.form.get("synth_type", "all")
+
+    if not target_date_str:
+        flash("Veuillez sélectionner une date.", "warning")
+        return redirect(url_for("admin_tasks.index"))
+
+    try:
+        target_date = date.fromisoformat(target_date_str)
+    except ValueError:
+        flash("Date invalide.", "danger")
+        return redirect(url_for("admin_tasks.index"))
+
+    # Fenêtre : toute la journée UTC du jour sélectionné
+    day_start = datetime(target_date.year, target_date.month, target_date.day,
+                         0, 0, 0, tzinfo=timezone.utc)
+    day_end = day_start + timedelta(days=1)
+
+    query = Synthesis.query.filter(
+        Synthesis.user_id == current_user.id,
+        Synthesis.generated_at >= day_start,
+        Synthesis.generated_at < day_end,
+    )
+
+    if synth_type == "daily":
+        query = query.filter(Synthesis.type == Synthesis.TYPE_DAILY)
+        label = "quotidiennes"
+    elif synth_type == "weekly":
+        query = query.filter(Synthesis.type == Synthesis.TYPE_WEEKLY)
+        label = "hebdomadaires"
+    else:
+        label = "toutes"
+
+    syntheses = query.all()
+    count = len(syntheses)
+
+    if count == 0:
+        flash(
+            f"Aucune synthèse {label} trouvée pour le {target_date.strftime('%d/%m/%Y')}.",
+            "info"
+        )
+        return redirect(url_for("admin_tasks.index"))
+
+    for s in syntheses:
+        db.session.delete(s)
+    db.session.commit()
+
+    flash(
+        f"{count} synthèse(s) {label} supprimée(s) pour le {target_date.strftime('%d/%m/%Y')}.",
+        "success"
+    )
+    logger.info(
+        f"{current_user.email} a supprimé {count} synthèse(s) {label} "
+        f"du {target_date_str}"
+    )
+    return redirect(url_for("admin_tasks.index"))
+
+
 @admin_tasks_bp.route("/status")
 @login_required
 @admin_required

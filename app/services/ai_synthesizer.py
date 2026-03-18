@@ -61,6 +61,7 @@ CONSIGNES :
 - Utiliser des bullet points pour la lisibilité
 - Langue : français
 - Prendre en compte TOUS les articles fournis
+- Ne mettre en gras QUE ce qui est entre les symboles "**"
 
 FORMAT ATTENDU :
 ## Synthèse du {date_str} — {category_name}
@@ -68,20 +69,26 @@ FORMAT ATTENDU :
 **Résumé :** [4-5 phrases de résumé général]
 
 **Points clés :**
+
 • [Point 1 avec source]
 • [Point 2 avec source]
 • [Point 3 avec source]
 • [Point 4 avec source]
 • [Point 5 avec source]
+...
 
-** Et en France ? ** 
+**Et en France ?** 
+
 • [Point 1 concernant la France spécifiquement avec source]
 • [Point 2 concernant la France spécifiquement avec source]
 • [Point 3 concernant la France spécifiquement avec source]
+...
 
 **Tendances observées :**
 • [Tendance 1]
 • [Tendance 2]
+...
+
 """
 
         return self._call_llm(prompt, max_tokens=2000)
@@ -178,6 +185,8 @@ Tu reçois {len(daily_syntheses)} synthèses quotidiennes au format suivant :
 - Points clés (bullets)
 - Tendances observées
 
+Voici les syntheses:
+
 {syntheses_text}
 
 ═══ TÂCHE ═══
@@ -238,7 +247,7 @@ OUVERTURE
 Pas de conclusion rassurante. Pas de morale.
 Une perspective constructive : ce qui avance, ce qui protège mieux,
 ce qui mérite d'être suivi la semaine prochaine.
-Ton sobre. 1 seule idée forte.
+Ton sobre. 1 ou 2 idées fortes.
 
 #Cybersécurité #[HashtagNiche1] #[HashtagNiche2] #RSSI
 

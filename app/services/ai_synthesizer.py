@@ -191,7 +191,7 @@ Voici les syntheses:
 
 ═══ TÂCHE ═══
 
-Produis une métasynthèse hebdomadaire structurée comme suit :
+Produis une métasynthèse hebdomadaire DE 3000 CARACTERES MAXIMUM structurée comme suit :
 
 ---
 

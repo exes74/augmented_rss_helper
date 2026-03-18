@@ -16,7 +16,7 @@ class Article(db.Model):
     title = db.Column(db.String(1024), nullable=False)
     url = db.Column(db.String(2048), nullable=False)
     content = db.Column(db.Text, nullable=True)   # Contenu ou résumé de l'article
-    author = db.Column(db.String(255), nullable=True)
+    author = db.Column(db.Text, nullable=True)  # Text pour les listes d'auteurs longues (ex: arXiv)
     published_at = db.Column(db.DateTime, nullable=True, index=True)
     fetched_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
                            nullable=False, index=True)

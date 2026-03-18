@@ -30,6 +30,8 @@ def _run_incremental_migrations(app: Flask) -> None:
         # v2 : enrichissement full-text via newspaper3k
         "ALTER TABLE articles ADD COLUMN IF NOT EXISTS enriched BOOLEAN NOT NULL DEFAULT FALSE",
         "CREATE INDEX IF NOT EXISTS ix_articles_enriched ON articles (enriched)",
+        # v3 : author en TEXT pour supporter les longues listes d'auteurs (ex: arXiv)
+        "ALTER TABLE articles ALTER COLUMN author TYPE TEXT",
     ]
 
     try:

@@ -186,20 +186,32 @@ def fetch_all_feeds(self):
                 # Insérer les nouveaux articles
                 new_count = 0
                 for art_data in articles_data:
-                    if Article.exists(art_data["url"], art_data["title"]):
-                        continue
+                    try:
+                        if Article.exists(art_data["url"], art_data["title"]):
+                            continue
 
-                    article = Article(
-                        feed_id=feed.id,
-                        title=art_data["title"],
-                        url=art_data["url"],
-                        content=art_data.get("content"),
-                        author=art_data.get("author", ""),
-                        published_at=art_data.get("published_at"),
-                        hash=art_data["hash"],
-                    )
-                    db.session.add(article)
-                    new_count += 1
+                        # Troncature défensive des champs à longueur limitée
+                        title = (art_data["title"] or "")[:1024]
+                        url = (art_data["url"] or "")[:2048]
+                        author = art_data.get("author") or ""
+
+                        article = Article(
+                            feed_id=feed.id,
+                            title=title,
+                            url=url,
+                            content=art_data.get("content"),
+                            author=author,
+                            published_at=art_data.get("published_at"),
+                            hash=art_data["hash"],
+                        )
+                        db.session.add(article)
+                        db.session.flush()  # Détecte les erreurs DB immédiatement
+                        new_count += 1
+                    except Exception as art_err:
+                        db.session.rollback()  # Réinitialise la session pour l'article suivant
+                        logger.warning(
+                            f"Article ignoré (flux {feed.id}, titre='{art_data.get('title', '')[:60]}'): {art_err}"
+                        )
 
                 feed.reset_errors()
                 feed.last_fetched = datetime.now(timezone.utc)

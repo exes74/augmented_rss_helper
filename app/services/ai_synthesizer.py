@@ -203,29 +203,36 @@ Exemples de ton acceptable :
 → "La semaine où l'IA est passée de l'autre côté"
 → "Quand la surface d'attaque grandit plus vite que les équipes"
 
-⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str}
+⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str} : [LE TITRE TROUVE AU DESSUS]
 
-[INTRO — 3 lignes max]
+[INTRO — 4-5 phrases digestes]
 Ce que cette semaine dit du secteur, en une lecture transversale.
 Pas un résumé des 7 jours. Une lecture.
 1 donnée chiffrée si elle est disponible dans les synthèses.
 
-5 FAITS MARQUANTS DE LA SEMAINE
+**Les tendances**
+
+[2-3 tendances, formulées en 2-3 lignes chacune]
+Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
+Formuler ce qui monte, ce qui bascule, ce qui se confirme.
+Impertinence autorisée si le consensus du secteur mérite d'être challengé.
+
+**Les faits marquants**
 
 1. [Titre court du fait]
 [2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
 
 2. [Titre court du fait]
-[2-3 lignes]
+[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
 
 3. [Titre court du fait]
-[2-3 lignes]
+[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
 
 4. [Titre court du fait]
-[2-3 lignes]
+[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
 
 5. [Titre court du fait]
-[2-3 lignes]
+[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
 
 → Critères de sélection des 5 faits :
 - Impact réel ou potentiel sur les organisations
@@ -234,14 +241,7 @@ Pas un résumé des 7 jours. Une lecture.
 - Diversité : ne pas prendre 5 faits du même registre (ex : 5 vulnérabilités)
 - Faits mentionnés dans plusieurs syntheses différentes
 
-TENDANCES DE LA SEMAINE
-
-[2-3 tendances, formulées en 2-3 lignes chacune]
-Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
-Formuler ce qui monte, ce qui bascule, ce qui se confirme.
-Impertinence autorisée si le consensus du secteur mérite d'être challengé.
-
-OUVERTURE
+**Ce qu'on en pense**
 
 [3-4 lignes]
 Pas de conclusion rassurante. Pas de morale.
@@ -279,10 +279,11 @@ tout consensus mou / toute conclusion qui rassure sans raison
         # Appel LLM en deux étapes
         logger.info(f"Super-synthèse hebdo — étape 1 : synthèse + faits + tendances")
         content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=2000)
-
-        logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
-        linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
-
+        if category_name == 'CyberSecurity':
+            logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
+            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
+        else:
+             linkedin_raw, tokens_2 = '',0
         # Parser les sections de la synthèse
         result = self._parse_weekly_response(content_raw)
         result["draft_linkedin"] = linkedin_raw.strip()

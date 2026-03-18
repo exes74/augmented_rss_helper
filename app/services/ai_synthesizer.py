@@ -21,6 +21,8 @@ class AISynthesizer:
         self.ollama_model = config.get("OLLAMA_MODEL", "llama3.1")
         self.max_tokens_daily = config.get("LLM_MAX_TOKENS_DAILY", 500000)
         self.max_tokens_weekly = config.get("LLM_MAX_TOKENS_WEEKLY", 1000000)
+        self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+        self.anthropic_model = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-5")
 
     def generate_daily_synthesis(
         self,
@@ -373,9 +375,50 @@ tout consensus mou / toute conclusion qui rassure sans raison
             return self._call_openai(prompt, max_tokens)
         elif self.provider == "ollama":
             return self._call_ollama(prompt, max_tokens)
+        elif self.provider == "claude":
+            return self._call_claude(prompt, max_tokens)
         else:
             logger.error(f"Provider LLM inconnu : {self.provider}")
             return "Erreur : provider LLM non configuré.", 0
+
+    def _call_claude(self, prompt: str, max_tokens: int = 1000) -> Tuple[str, int]:
+        """Appelle l'API Anthropic Claude."""
+        if not self.anthropic_api_key:
+            logger.error("Clé API Anthropic manquante (ANTHROPIC_API_KEY non définie dans .env)")
+            return "Erreur : clé API Anthropic non configurée.", 0
+
+        try:
+            import anthropic
+            logger.debug(f"Versions : anthropic={anthropic.__version__}")
+
+            client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+
+            response = client.messages.create(
+                model=self.anthropic_model,  # ex: "claude-opus-4-5"
+                max_tokens=max_tokens,
+                system="Tu es un assistant expert en veille informationnelle et création de contenu professionnel. Tu réponds toujours en français.",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+            )
+
+            content = response.content[0].text
+            tokens_used = response.usage.input_tokens + response.usage.output_tokens
+
+            logger.info(
+                f"Claude : {tokens_used} tokens utilisés "
+                f"(input={response.usage.input_tokens}, output={response.usage.output_tokens}, "
+                f"modèle={self.anthropic_model})"
+            )
+            return content, tokens_used
+
+        except Exception as e:
+            logger.error(f"Erreur API Anthropic : {e}", exc_info=True)
+            return f"Erreur lors de la génération de la synthèse : {str(e)}", 0
+
 
     def _call_openai(self, prompt: str, max_tokens: int = 1000) -> Tuple[str, int]:
         """Appelle l'API OpenAI."""

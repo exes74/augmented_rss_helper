@@ -434,18 +434,14 @@ def send_weekly_synthesis_email(
     week_start: date,
     week_end: date
 ) -> bool:
-    """
-    Envoie l'email de synthèse hebdomadaire avec draft LinkedIn.
-
-    Args:
-        to_emails: Liste des destinataires
-        syntheses_by_category: Liste de dicts {category_name, content, key_facts, trends,
-                                                draft_linkedin, articles_count}
-        week_start: Début de la semaine
-        week_end: Fin de la semaine
-    """
     period = f"du {week_start.strftime('%d/%m')} au {week_end.strftime('%d/%m/%Y')}"
-    subject = f"Synthèse hebdomadaire RSS — Semaine {period}"
+
+    # ── Sujet personnalisé si une seule catégorie ──
+    if len(syntheses_by_category) == 1:
+        cat_name = syntheses_by_category[0]["category_name"]
+        subject = f"Synthèse hebdomadaire — {cat_name} — Semaine {period}"
+    else:
+        subject = f"Synthèse hebdomadaire RSS — Semaine {period}"
 
     categories_html = ""
     for item in syntheses_by_category:

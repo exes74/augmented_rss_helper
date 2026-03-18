@@ -223,6 +223,7 @@ Pas un résumé des 7 jours. Une lecture.
 - Nouveauté (pas une énième variante d'une menace connue)
 - Révélateur d'une tendance plus large
 - Diversité : ne pas prendre 5 faits du même registre (ex : 5 vulnérabilités)
+- Faits mentionnés dans plusieurs syntheses différentes
 
 TENDANCES DE LA SEMAINE
 
@@ -463,6 +464,6 @@ def get_synthesizer(app=None) -> AISynthesizer:
         "OPENAI_MODEL": config.get("OPENAI_MODEL", "gpt-4o-mini"),
         "OLLAMA_BASE_URL": config.get("OLLAMA_BASE_URL", "http://ollama:11434"),
         "OLLAMA_MODEL": config.get("OLLAMA_MODEL", "llama3.1"),
-        "LLM_MAX_TOKENS_DAILY": config.get("LLM_MAX_TOKENS_DAILY", 50000),
-        "LLM_MAX_TOKENS_WEEKLY": config.get("LLM_MAX_TOKENS_WEEKLY", 100000),
+        "LLM_MAX_TOKENS_DAILY": config.get("LLM_MAX_TOKENS_DAILY", 500000),
+        "LLM_MAX_TOKENS_WEEKLY": config.get("LLM_MAX_TOKENS_WEEKLY", 1000000),
     })

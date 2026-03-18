@@ -56,7 +56,7 @@ def make_celery(flask_app=None) -> Celery:
     daily_minute = int(os.environ.get("DAILY_SYNTHESIS_MINUTE", 0))
     # Synthèses hebdomadaires : mercredi 7h00 par défaut
     # (configurable via WEEKLY_SYNTHESIS_HOUR et WEEKLY_SYNTHESIS_DAY)
-    weekly_hour = int(os.environ.get("WEEKLY_SYNTHESIS_HOUR", 7))
+    weekly_hour = int(os.environ.get("WEEKLY_SYNTHESIS_HOUR", 8))
     weekly_minute = int(os.environ.get("WEEKLY_SYNTHESIS_MINUTE", 0))
     weekly_day = os.environ.get("WEEKLY_SYNTHESIS_DAY", "wednesday")
 
@@ -698,9 +698,6 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
 @celery_app.task(bind=True, name="services.scheduler_tasks.send_weekly_emails",
                  max_retries=3, default_retry_delay=300)
 def send_weekly_emails(self, force: bool = False):
-    """Envoie les emails de synthèse hebdomadaire.
-    Si force=True, renvoie même si l'email a déjà été envoyé (email_sent=True).
-    """
     flask_app = _get_flask_app()
     with flask_app.app_context():
         from main import db
@@ -710,14 +707,10 @@ def send_weekly_emails(self, force: bool = False):
         from services.email_sender import send_weekly_synthesis_email
 
         today = date.today()
-        # Fenêtre glissante : J-6 → aujourd'hui (7 jours au total, aujourd'hui inclus)
-        # Cohérent avec generate_weekly_syntheses
         period_end = today
         period_start = period_end - timedelta(days=6)
-        week_start_dt = datetime.combine(period_start, datetime.min.time()).replace(
-            tzinfo=timezone.utc)
-        week_end_dt = datetime.combine(period_end, datetime.max.time()).replace(
-            tzinfo=timezone.utc)
+        week_start_dt = datetime.combine(period_start, datetime.min.time()).replace(tzinfo=timezone.utc)
+        week_end_dt = datetime.combine(period_end, datetime.max.time()).replace(tzinfo=timezone.utc)
 
         logger.info(
             f"Envoi des emails hebdomadaires (fenêtre glissante : "
@@ -740,7 +733,6 @@ def send_weekly_emails(self, force: bool = False):
                 Synthesis.period_start >= week_start_dt,
                 Synthesis.period_start <= week_end_dt,
             )
-            # En mode normal, ne renvoyer que les emails non encore envoyés
             if not force:
                 query = query.filter(Synthesis.email_sent == False)
 
@@ -752,41 +744,51 @@ def send_weekly_emails(self, force: bool = False):
             if not syntheses:
                 continue
 
-            syntheses_data = []
-            for s in syntheses:
-                cat_name = s.category.name if s.category else "Général"
-                syntheses_data.append({
-                    "category_name": cat_name,
-                    "content": s.content or "",
-                    "key_facts": s.key_facts or "",
-                    "trends": s.trends or "",
-                    "draft_linkedin": s.draft_linkedin or "",
-                    "articles_count": s.articles_count,
-                })
-
+            # Destinataires (commun à toutes les catégories de cet user)
             to_emails = [user.email]
             subs = Subscription.query.filter_by(
                 owner_user_id=user.id, receive_weekly=True
             ).all()
             to_emails.extend([s.subscriber_email for s in subs])
 
-            try:
-                success = send_weekly_synthesis_email(
-                    to_emails, syntheses_data, period_start, period_end
-                )
-                if success:
-                    for s in syntheses:
+            # ── UN EMAIL PAR SYNTHÈSE (= par catégorie) ──────────────────
+            for s in syntheses:
+                cat_name = s.category.name if s.category else "Général"
+                synthesis_data = {
+                    "category_name": cat_name,
+                    "content": s.content or "",
+                    "key_facts": s.key_facts or "",
+                    "trends": s.trends or "",
+                    "draft_linkedin": s.draft_linkedin or "",
+                    "articles_count": s.articles_count,
+                }
+
+                try:
+                    success = send_weekly_synthesis_email(
+                        to_emails,
+                        [synthesis_data],   # ← liste d'un seul élément
+                        period_start,
+                        period_end,
+                        category_name=cat_name  # ← pour le sujet du mail
+                    )
+                    if success:
                         s.email_sent = True
                         s.email_sent_at = datetime.now(timezone.utc)
-                    db.session.commit()
-                    stats["emails_sent"] += 1
-                else:
+                        db.session.commit()
+                        stats["emails_sent"] += 1
+                    else:
+                        stats["errors"] += 1
+                except Exception as e:
+                    logger.error(
+                        f"Erreur envoi email hebdo user={user.id} "
+                        f"catégorie={cat_name}: {e}"
+                    )
                     stats["errors"] += 1
-            except Exception as e:
-                logger.error(f"Erreur envoi email hebdo user={user.id}: {e}")
-                stats["errors"] += 1
 
-        logger.info(f"Emails hebdomadaires : {stats['emails_sent']} envoyés, {stats['errors']} erreurs")
+        logger.info(
+            f"Emails hebdomadaires : {stats['emails_sent']} envoyés, "
+            f"{stats['errors']} erreurs"
+        )
         return stats
 
 

@@ -199,20 +199,17 @@ Produis une métasynthèse hebdomadaire structurée comme suit :
 Sobre, factuel, légèrement impertinent.
 Résume la semaine sans l'épuiser.
 Pas de question. Pas d'exclamation. Pas de jeu de mots forcé.
-Exemples de ton acceptable :
-→ "La semaine où l'IA est passée de l'autre côté"
-→ "Quand la surface d'attaque grandit plus vite que les équipes"
 
 ⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str} : [LE TITRE TROUVE AU DESSUS]
 
-[INTRO — 4-5 phrases digestes]
+[INTRO — formulée en 4 à 5 phrases digestes]
 Ce que cette semaine dit du secteur, en une lecture transversale.
 Pas un résumé des 7 jours. Une lecture.
 1 donnée chiffrée si elle est disponible dans les synthèses.
 
 **Les tendances**
 
-[2-3 tendances, formulées en 2-3 lignes chacune]
+[2-3 tendances, formulées en 2-3 phrases chacune]
 Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
 Formuler ce qui monte, ce qui bascule, ce qui se confirme.
 Impertinence autorisée si le consensus du secteur mérite d'être challengé.
@@ -220,19 +217,19 @@ Impertinence autorisée si le consensus du secteur mérite d'être challengé.
 **Les faits marquants**
 
 1. [Titre court du fait]
-[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
+[2-3 phrases : le fait, son contexte immédiat, pourquoi il compte]
 
 2. [Titre court du fait]
-[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
+[2-3 phrases : le fait, son contexte immédiat, pourquoi il compte]
 
 3. [Titre court du fait]
-[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
+[2-3 phrases : le fait, son contexte immédiat, pourquoi il compte]
 
 4. [Titre court du fait]
-[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
+[2-3 phrases : le fait, son contexte immédiat, pourquoi il compte]
 
 5. [Titre court du fait]
-[2-3 lignes : le fait, son contexte immédiat, pourquoi il compte]
+[2-3 phrases : le fait, son contexte immédiat, pourquoi il compte]
 
 → Critères de sélection des 5 faits :
 - Impact réel ou potentiel sur les organisations
@@ -243,7 +240,7 @@ Impertinence autorisée si le consensus du secteur mérite d'être challengé.
 
 **Ce qu'on en pense**
 
-[3-4 lignes]
+[3-4 phrases]
 Pas de conclusion rassurante. Pas de morale.
 Une perspective constructive : ce qui avance, ce qui protège mieux,
 ce qui mérite d'être suivi la semaine prochaine.
@@ -265,8 +262,7 @@ FORME :
 - Langue : français intégral, termes techniques en anglais acceptés
 - Aucun emoji sauf ⚡ sur la ligne Cyber Brief
 - 1 saut de ligne entre chaque bloc
-- Les titres de section (5 FAITS, TENDANCES, OUVERTURE)
-  sont visibles dans le post — format sobre, sans décoration
+- Les titres de section (Les tendances, Les faits marquants, Ce qu'on en pense) sont visibles dans le post — format sobre, en gras
 
 MOTS INTERDITS :
 "crucial" / "important" / "partager" / "liker" /
@@ -281,7 +277,7 @@ tout consensus mou / toute conclusion qui rassure sans raison
         content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=2000)
         if category_name == 'CyberSecurity':
             logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
-            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
+            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=10000)
         else:
              linkedin_raw, tokens_2 = '',0
         # Parser les sections de la synthèse

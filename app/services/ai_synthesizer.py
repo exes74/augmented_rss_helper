@@ -202,19 +202,17 @@ Pas de question. Pas d'exclamation. Pas de jeu de mots forcé.
 
 ⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str} : [LE TITRE TROUVE AU DESSUS]
 
-[INTRO — formulée en 4 à 5 phrases digestes]
+[INTRO — formulée en 2 à 3 phrases digestes]
 Ce que cette semaine dit du secteur, en une lecture transversale.
 Pas un résumé des 7 jours. Une lecture.
 1 donnée chiffrée si elle est disponible dans les synthèses.
-
-Les tendances
 
 [2-3 tendances, formulées en 1-2 phrases chacune]
 Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
 Formuler ce qui monte, ce qui bascule, ce qui se confirme.
 Impertinence autorisée si le consensus du secteur mérite d'être challengé.
 
-Les faits marquants
+[Les faits marquants]
 
 1. [Titre court du fait]
 [1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
@@ -235,9 +233,7 @@ Les faits marquants
 - Diversité : ne pas prendre 5 faits du même registre (ex : 5 vulnérabilités)
 - Faits mentionnés dans plusieurs syntheses différentes
 
-Ce qu'on en pense
-
-[2-3 phrases]
+[Ce qu'on en pense - 2-3 phrases]
 Pas de conclusion rassurante. Pas de morale.
 Une perspective constructive : ce qui avance, ce qui protège mieux,
 ce qui mérite d'être suivi la semaine prochaine.
@@ -252,7 +248,6 @@ FOND :
 - Les tendances doivent être transversales (au moins 2 synthèses différentes)
 - 0 fait inventé ou extrapolé au-delà des sources
 
-
 FORME — BUDGETS STRICTS :
 - Titre : 1 ligne
 - Intro : 4-5 phrases = ~300 caractères
@@ -264,8 +259,8 @@ FORME — BUDGETS STRICTS :
 - Aucun emoji sauf ⚡ sur la ligne Cyber Brief
 - 1 saut de ligne entre chaque bloc
 - Les titres de section (Les tendances, Les faits marquants, Ce qu'on en pense) sont visibles dans le post — format sobre, en gras
-─────────────────────────────
-TOTAL CIBLE : 2600–3000 caractères
+
+TOTAL CIBLE : 2400–2600 caractères
 
 MOTS INTERDITS :
 "crucial" / "important" / "partager" / "liker" /

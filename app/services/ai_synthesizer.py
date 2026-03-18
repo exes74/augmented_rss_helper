@@ -19,8 +19,8 @@ class AISynthesizer:
         self.openai_model = config.get("OPENAI_MODEL", "gpt-4o-mini")
         self.ollama_base_url = config.get("OLLAMA_BASE_URL", "http://ollama:11434")
         self.ollama_model = config.get("OLLAMA_MODEL", "llama3.1")
-        self.max_tokens_daily = config.get("LLM_MAX_TOKENS_DAILY", 50000)
-        self.max_tokens_weekly = config.get("LLM_MAX_TOKENS_WEEKLY", 100000)
+        self.max_tokens_daily = config.get("LLM_MAX_TOKENS_DAILY", 500000)
+        self.max_tokens_weekly = config.get("LLM_MAX_TOKENS_WEEKLY", 1000000)
 
     def generate_daily_synthesis(
         self,
@@ -52,9 +52,11 @@ ARTICLES DU JOUR ({len(articles)} articles) :
 {articles_text}
 
 CONSIGNES :
-- Synthèse de 400 à 600 mots
+- Synthèse de 500 à 700 mots
 - Style informatif et professionnel
-- Extraire les 3 à 5 tendances clés observées
+- Identifier les 5-10 points clés en repérant les informations mises en valeur par plusieurs articles
+- Identifier les 3-5 points clés concernant la France spécifiquement
+- Extraire les 3 à 5 tendances clés observées en croisant les articles
 - Citer les sources (noms des sites/médias)
 - Utiliser des bullet points pour la lisibilité
 - Langue : français
@@ -63,12 +65,19 @@ CONSIGNES :
 FORMAT ATTENDU :
 ## Synthèse du {date_str} — {category_name}
 
-**Résumé :** [2-3 phrases de résumé général]
+**Résumé :** [4-5 phrases de résumé général]
 
 **Points clés :**
 • [Point 1 avec source]
 • [Point 2 avec source]
 • [Point 3 avec source]
+• [Point 4 avec source]
+• [Point 5 avec source]
+
+** Et en France ? ** 
+• [Point 1 concernant la France spécifiquement avec source]
+• [Point 2 concernant la France spécifiquement avec source]
+• [Point 3 concernant la France spécifiquement avec source]
 
 **Tendances observées :**
 • [Tendance 1]

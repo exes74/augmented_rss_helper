@@ -35,6 +35,7 @@ celerybeat/
 # Base de données locale
 *.db
 *.sqlite3
+backup.sql
 
 # Docker volumes locaux
 postgres_data/

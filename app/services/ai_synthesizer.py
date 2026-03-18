@@ -248,8 +248,6 @@ Ton sobre. 1 ou 2 idées fortes.
 
 #Cybersécurité #[HashtagNiche1] #[HashtagNiche2] #RSSI
 
-[XXX mots]
-
 ═══ CONTRAINTES ═══
 
 FOND :
@@ -258,7 +256,7 @@ FOND :
 - 0 fait inventé ou extrapolé au-delà des sources
 
 FORME :
-- 3000 Caractères maximum (afficher le total)
+- 3000 Caractères maximum  AU TOTAL(afficher le total) - recompter les caractères en fin d'exercice et restructurer si supérieur à 3000 caractères
 - Langue : français intégral, termes techniques en anglais acceptés
 - Aucun emoji sauf ⚡ sur la ligne Cyber Brief
 - 1 saut de ligne entre chaque bloc

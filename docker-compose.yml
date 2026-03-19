@@ -7,9 +7,9 @@ services:
     container_name: rss_postgres
     restart: unless-stopped
     environment:
-      - POSTGRES_DB: ${POSTGRES_DB:-rssveille}
-      - POSTGRES_USER: ${POSTGRES_USER:-rssuser}
-      - POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-rssveille}
+      POSTGRES_USER: ${POSTGRES_USER:-rssuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
       - TZ=Europe/Paris
     volumes:
       - postgres_data:/var/lib/postgresql/data

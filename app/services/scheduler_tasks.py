@@ -34,17 +34,23 @@ def make_celery(flask_app=None) -> Celery:
         backend=redis_url,
     )
 
+    # La timezone doit être lue ici (au niveau module) car make_celery() est appelé
+    # sans contexte Flask. La variable TIMEZONE doit être dans l'environnement du container.
+    tz = os.environ.get("TIMEZONE", "Europe/Paris")
+
     celery_instance.conf.update(
         task_serializer="json",
         accept_content=["json"],
         result_serializer="json",
-        timezone=os.environ.get("TIMEZONE", "Europe/Paris"),
-        enable_utc=True,
+        # CORRECTION TIMEZONE :
+        # enable_utc=True + timezone=Paris → les crontabs sont interprétés en UTC
+        # ce qui décale les horaires de +1h (hiver) ou +2h (été) par rapport à Paris.
+        # Solution : enable_utc=False pour que les crontabs soient en heure locale (Paris).
+        timezone=tz,
+        enable_utc=False,
         task_track_started=True,
         task_acks_late=True,
         worker_prefetch_multiplier=1,
-        # CORRECTION 1 : Pas de task_routes vers des queues multiples
-        # Le worker est lancé sans --queues, donc tout va dans la queue "celery" par défaut
         task_default_queue="celery",
         broker_connection_retry_on_startup=True,
     )

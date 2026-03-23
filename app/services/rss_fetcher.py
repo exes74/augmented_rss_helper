@@ -94,19 +94,27 @@ def fetch_feed_articles(feed_url: str, last_fetched: Optional[datetime] = None) 
             error = str(feed.bozo_exception) if hasattr(feed, "bozo_exception") else "Flux invalide"
             return [], f"Flux invalide : {error}"
 
+        # Normaliser last_fetched une seule fois
+        if last_fetched and last_fetched.tzinfo is None:
+            last_fetched = last_fetched.replace(tzinfo=timezone.utc)
+
         articles = []
         for entry in feed.entries:
             # Extraire la date de publication
             pub_date = _parse_entry_date(entry)
 
-            # Filtrer les anciens articles si last_fetched est fourni
+            # Filtrer les anciens articles sur la date de PUBLICATION.
+            # On utilise une marge de 25h (au lieu de last_fetched strict) pour
+            # ne pas rater les articles dont la date de publication est légèrement
+            # antérieure à la dernière collecte (décalages d'horloge, corrections
+            # de date, etc.). La déduplication par hash dans fetch_all_feeds
+            # garantit qu'on n'insère pas de doublons.
             if last_fetched and pub_date:
-                # Normaliser les dates pour la comparaison
                 if pub_date.tzinfo is None:
                     pub_date = pub_date.replace(tzinfo=timezone.utc)
-                if last_fetched.tzinfo is None:
-                    last_fetched = last_fetched.replace(tzinfo=timezone.utc)
-                if pub_date <= last_fetched:
+                from datetime import timedelta
+                cutoff = last_fetched - timedelta(hours=25)
+                if pub_date < cutoff:
                     continue
 
             # Extraire le contenu
@@ -140,14 +148,21 @@ def fetch_feed_articles(feed_url: str, last_fetched: Optional[datetime] = None) 
 
 
 def _parse_entry_date(entry) -> Optional[datetime]:
-    """Extrait et normalise la date de publication d'une entrée RSS."""
-    import time as time_module
+    """Extrait et normalise la date de publication d'une entrée RSS.
+
+    feedparser retourne les dates en tuples UTC (time.struct_time).
+    Il faut utiliser calendar.timegm() (interprète le tuple comme UTC)
+    et NON time.mktime() (qui l'interprète comme heure locale, ce qui
+    décale les dates de +1h ou +2h selon le fuseau horaire du système).
+    """
+    import calendar
 
     for date_field in ("published_parsed", "updated_parsed", "created_parsed"):
         date_tuple = entry.get(date_field)
         if date_tuple:
             try:
-                ts = time_module.mktime(date_tuple)
+                # calendar.timegm : tuple UTC → timestamp UTC (pas de décalage TZ)
+                ts = calendar.timegm(date_tuple)
                 return datetime.fromtimestamp(ts, tz=timezone.utc)
             except (TypeError, ValueError, OverflowError):
                 continue

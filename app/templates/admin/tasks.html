@@ -255,6 +255,55 @@
     </form>
   </div>
 
+  <!-- Réinitialisation last_fetched -->
+  <div class="bg-white rounded-lg shadow p-5 mb-6 border-l-4 border-orange-400">
+    <h2 class="text-lg font-semibold text-gray-800 mb-1">🔄 Réinitialiser la date de collecte des flux</h2>
+    <p class="text-sm text-gray-500 mb-4">
+      Remet à zéro le champ <code class="bg-gray-100 px-1 rounded">last_fetched</code> des flux sélectionnés.
+      La prochaine collecte récupérera <strong>tous les articles disponibles</strong> dans le flux,
+      sans limite de date. Utile après un bug de collecte ou pour récupérer des articles manquants.
+    </p>
+    <form method="POST" action="{{ url_for('admin_tasks.reset_last_fetched') }}"
+          onsubmit="return confirm('Réinitialiser last_fetched ? La prochaine collecte sera plus longue.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="flex flex-wrap items-end gap-4">
+        <!-- Périmètre -->
+        <div class="flex flex-col gap-1" id="reset-scope-block">
+          <label class="text-xs font-medium text-gray-600">Périmètre</label>
+          <div class="flex gap-3">
+            <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+              <input type="radio" name="scope" value="all" checked
+                class="accent-orange-500"
+                onchange="document.getElementById('reset-cat-block').classList.add('hidden')">
+              <span>Tous les flux</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer text-sm">
+              <input type="radio" name="scope" value="category"
+                class="accent-orange-500"
+                onchange="document.getElementById('reset-cat-block').classList.remove('hidden')">
+              <span>Par catégorie</span>
+            </label>
+          </div>
+        </div>
+        <!-- Sélecteur de catégorie (masqué par défaut) -->
+        <div class="flex flex-col gap-1 hidden" id="reset-cat-block">
+          <label class="text-xs font-medium text-gray-600">Catégorie</label>
+          <select name="category_id"
+            class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-400">
+            {% for cat in user_categories %}
+            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <!-- Bouton -->
+        <button type="submit"
+          class="bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-5 rounded-lg transition text-sm whitespace-nowrap">
+          🔄 Réinitialiser
+        </button>
+      </div>
+    </form>
+  </div>
+
   <!-- Derniers flux collectés -->
   {% if recent_feeds %}
   <div class="bg-white rounded-lg shadow p-5 mb-6">

@@ -143,6 +143,12 @@ def index():
     col_totals = [sum(r['day_counts'][i] for r in articles_by_source) for i in range(7)]
     grand_total = sum(col_totals)
 
+    # Catégories de l'utilisateur (pour le sélecteur de reset last_fetched)
+    from models.category import Category
+    user_categories = Category.query.filter_by(
+        user_id=current_user.id, active=True
+    ).order_by(Category.name).all()
+
     # État Celery
     celery_status = _check_celery_status()
 
@@ -157,6 +163,7 @@ def index():
         col_totals=col_totals,
         grand_total=grand_total,
         today=date.today().isoformat(),
+        user_categories=user_categories,
     )
 
 
@@ -353,6 +360,60 @@ def delete_syntheses():
     logger.info(
         f"{current_user.email} a supprimé {count} synthèse(s) {label} "
         f"du {target_date_str}"
+    )
+    return redirect(url_for("admin_tasks.index"))
+
+
+@admin_tasks_bp.route("/reset-last-fetched", methods=["POST"])
+@login_required
+@admin_required
+def reset_last_fetched():
+    """
+    Réinitialise le champ last_fetched des flux RSS pour forcer une re-collecte
+    complète lors de la prochaine exécution de fetch_all_feeds.
+    Paramètres POST :
+      - scope       : 'all' | 'category'
+      - category_id : int (requis si scope='category')
+    """
+    from models.feed import Feed
+
+    scope = request.form.get("scope", "all")
+    category_id = request.form.get("category_id", type=int)
+
+    query = Feed.query.filter_by(user_id=current_user.id, active=True)
+
+    if scope == "category" and category_id:
+        from models.category import Category
+        cat = Category.query.filter_by(
+            id=category_id, user_id=current_user.id
+        ).first()
+        if not cat:
+            flash("Catégorie introuvable.", "danger")
+            return redirect(url_for("admin_tasks.index"))
+        query = query.filter_by(category_id=category_id)
+        label = f"catégorie « {cat.name} »"
+    else:
+        label = "tous les flux"
+
+    feeds = query.all()
+    count = len(feeds)
+
+    if count == 0:
+        flash("Aucun flux actif trouvé.", "info")
+        return redirect(url_for("admin_tasks.index"))
+
+    for feed in feeds:
+        feed.last_fetched = None
+
+    db.session.commit()
+
+    flash(
+        f"last_fetched réinitialisé pour {count} flux ({label}). "
+        f"La prochaine collecte récupérera tous les articles disponibles.",
+        "success"
+    )
+    logger.info(
+        f"{current_user.email} a réinitialisé last_fetched sur {count} flux ({label})"
     )
     return redirect(url_for("admin_tasks.index"))
 

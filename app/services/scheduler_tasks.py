@@ -312,13 +312,12 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
         if target_date_str:
             target_date = date.fromisoformat(target_date_str)
         else:
-            # En mode automatique, on synthétise AUJOURD'HUI.
-            # La tâche tourne à 7h heure de Paris (enable_utc=False).
-            # Les articles du jour ont été collectés depuis 6h du matin.
-            # On synthétise donc J (aujourd'hui) et non J-1 (hier).
-            # Note : si aucun article n'a été publié aujourd'hui, la synthèse
-            # sera vide et ne sera pas créée (comportement normal).
-            target_date = date.today()
+            # En mode automatique, on synthétise la VEILLE (J-1).
+            # La tâche tourne à 7h heure de Paris : les articles de J-1
+            # ont tous été collectés et on synthétise la journée complète.
+            # On filtre par fetched_at (date de collecte par notre système)
+            # et non par published_at (date RSS, potentiellement décalée).
+            target_date = date.today() - timedelta(days=1)
 
         logger.info(f"Génération des synthèses quotidiennes pour le {target_date}")
 
@@ -357,18 +356,19 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
                         db.session.delete(existing)
                         db.session.commit()
 
-                    # CORRECTION : filtrer par published_at (date de publication)
-                    # et non par fetched_at (date de collecte)
+                    # On filtre par fetched_at (date de collecte par notre système)
+                    # car published_at dépend du flux RSS et peut être décalé
+                    # (bug mktime, flux mal configurés, etc.).
                     articles = (
                         db.session.query(Article)
                         .join(Article.feed)
                         .filter(
                             Feed.user_id == user.id,
                             Feed.category_id == category.id,
-                            Article.published_at >= day_start,
-                            Article.published_at < day_end,
+                            Article.fetched_at >= day_start,
+                            Article.fetched_at < day_end,
                         )
-                        .order_by(Article.published_at.desc())
+                        .order_by(Article.fetched_at.desc())
                         .all()
                     )
 

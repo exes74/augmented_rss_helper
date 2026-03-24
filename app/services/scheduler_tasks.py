@@ -131,12 +131,22 @@ def make_celery(flask_app=None) -> Celery:
 celery_app = make_celery()
 
 
+_flask_app_cache = None
+
+
 def _get_flask_app():
-    """Crée un contexte Flask pour les tâches Celery (appelé dans chaque tâche)."""
-    import sys
-    sys.path.insert(0, "/app")
-    from main import create_app
-    return create_app()
+    """
+    Retourne (et met en cache) l'instance Flask pour les tâches Celery.
+    Le cache évite de réexécuter create_app() (et donc _run_incremental_migrations)
+    à chaque tâche, ce qui générait un spam de logs dans le worker.
+    """
+    global _flask_app_cache
+    if _flask_app_cache is None:
+        import sys
+        sys.path.insert(0, "/app")
+        from main import create_app
+        _flask_app_cache = create_app()
+    return _flask_app_cache
 
 
 # ─── Tâche : Collecte de tous les flux RSS ────────────────────────────────
@@ -302,10 +312,13 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
         if target_date_str:
             target_date = date.fromisoformat(target_date_str)
         else:
-            # En mode automatique (sans date cible), on synthétise la VEILLE
-            # car la tâche tourne à 7h du matin et les articles de la veille
-            # sont ceux qui ont été publiés le jour précédent
-            target_date = date.today() - timedelta(days=1)
+            # En mode automatique, on synthétise AUJOURD'HUI.
+            # La tâche tourne à 7h heure de Paris (enable_utc=False).
+            # Les articles du jour ont été collectés depuis 6h du matin.
+            # On synthétise donc J (aujourd'hui) et non J-1 (hier).
+            # Note : si aucun article n'a été publié aujourd'hui, la synthèse
+            # sera vide et ne sera pas créée (comportement normal).
+            target_date = date.today()
 
         logger.info(f"Génération des synthèses quotidiennes pour le {target_date}")
 

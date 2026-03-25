@@ -338,13 +338,18 @@ def generate_daily_syntheses(self, target_date_str: Optional[str] = None, force:
                 ).all()
 
                 for category in categories:
+                    # Déduplication sur period_start (date des articles couverts)
+                    # et non sur generated_at (date de création de la synthèse).
+                    # Ainsi une synthèse générée manuellement le 25/03 pour J-1=24/03
+                    # a period_start=24/03 00:00 UTC et est bien retrouvée lors
+                    # de la tâche automatique du 25/03 (qui cherche aussi period_start=24/03).
                     existing = Synthesis.query.filter_by(
                         user_id=user.id,
                         category_id=category.id,
                         type=Synthesis.TYPE_DAILY,
                     ).filter(
-                        Synthesis.generated_at >= day_start,
-                        Synthesis.generated_at < day_end,
+                        Synthesis.period_start >= day_start,
+                        Synthesis.period_start < day_end,
                     ).first()
 
                     if existing:
@@ -595,7 +600,9 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
         if target_date_str:
             target_date = date.fromisoformat(target_date_str)
         else:
-            target_date = date.today()
+            # Cohérence avec generate_daily_syntheses : on envoie les synthèses de J-1.
+            # La tâche tourne à 7h30 Paris, 30 min après la génération des synthèses (7h).
+            target_date = date.today() - timedelta(days=1)
 
         day_start = datetime.combine(target_date, datetime.min.time()).replace(
             tzinfo=timezone.utc)
@@ -641,16 +648,17 @@ def send_daily_emails(self, target_date_str: Optional[str] = None, force: bool =
                 cat_id = s.category_id
 
                 # Articles sources pour cette catégorie
+                # Filtre par fetched_at (cohérent avec generate_daily_syntheses)
                 articles_raw = (
                     db.session.query(Article)
                     .join(Article.feed)
                     .filter(
                         Feed.user_id == user.id,
                         Feed.category_id == cat_id,
-                        Article.published_at >= day_start,
-                        Article.published_at < day_end,
+                        Article.fetched_at >= day_start,
+                        Article.fetched_at < day_end,
                     )
-                    .order_by(Article.published_at.desc())
+                    .order_by(Article.fetched_at.desc())
                     .all()
                 )
                 articles_list = [

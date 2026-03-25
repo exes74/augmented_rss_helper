@@ -152,6 +152,7 @@ def index():
     # État Celery
     celery_status = _check_celery_status()
 
+    from datetime import timedelta
     return render_template(
         "admin/tasks.html",
         stats=stats,
@@ -163,6 +164,7 @@ def index():
         col_totals=col_totals,
         grand_total=grand_total,
         today=date.today().isoformat(),
+        yesterday=(date.today() - timedelta(days=1)).isoformat(),
         user_categories=user_categories,
     )
 

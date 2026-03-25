@@ -101,13 +101,13 @@
       <h3 class="font-semibold text-gray-800 mb-2">📝 Synthèses quotidiennes</h3>
       <p class="text-sm text-gray-500 mb-4">
         Génère les synthèses IA pour tous les utilisateurs et catégories.
-        Choisissez la date cible (par défaut : aujourd'hui).
+        Choisissez la date cible (par défaut : hier, J-1).
       </p>
       <form method="POST" action="{{ url_for('admin_tasks.run_daily_synthesis') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="force" value="true">
         <input type="date" name="target_date"
-          value="{{ today }}"
+          value="{{ yesterday }}"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-purple-500">
         <div class="flex items-center gap-2 mb-3">
           <span class="text-xs text-gray-500">ℹ️ Le déclenchement manuel <strong>régénère toujours</strong> les synthèses existantes (force=true).</span>
@@ -150,7 +150,7 @@
       <form method="POST" action="{{ url_for('admin_tasks.run_send_daily_emails') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="date" name="target_date"
-          value="{{ today }}"
+          value="{{ yesterday }}"
           class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 focus:ring-2 focus:ring-green-500">
         <button type="submit"
           class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition">

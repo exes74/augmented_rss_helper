@@ -205,6 +205,26 @@
       </form>
     </div>
 
+    <!-- Vérification de santé -->
+    <div class="bg-white rounded-lg shadow p-5 border-l-4 border-sky-500">
+      <h3 class="font-semibold text-gray-800 mb-2">🩺 Vérification de santé</h3>
+      <p class="text-sm text-gray-500 mb-4">
+        Vérifie que les synthèses de J-1 ont bien été générées et les emails envoyés.
+        Envoie un email d'alerte à <strong>ADMIN_EMAIL</strong> si une anomalie est détectée.
+        Planifiée automatiquement à 10h00 chaque jour.
+      </p>
+      <form method="POST" action="{{ url_for('admin_tasks.run_check_health') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs text-gray-500">ℹ️ Configurer <code>HEALTH_CHECK_ALWAYS_REPORT=true</code> dans le <code>.env</code> pour recevoir le rapport même sans anomalie.</span>
+        </div>
+        <button type="submit"
+          class="w-full bg-sky-600 hover:bg-sky-700 text-white font-medium py-2 px-4 rounded-lg transition">
+          ▶ Lancer la vérification de santé maintenant
+        </button>
+      </form>
+    </div>
+
   </div>
 
   <!-- Suppression de synthèses par date -->

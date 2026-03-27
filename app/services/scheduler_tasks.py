@@ -71,6 +71,9 @@ def make_celery(flask_app=None) -> Celery:
         "friday": 5, "saturday": 6, "sunday": 0
     }
     weekly_day_num = day_map.get(weekly_day.lower(), 3)  # 3 = mercredi
+    # Vérification santé quotidienne : 10h00 par défaut (après génération 7h + envoi 7h30)
+    health_hour = int(os.environ.get("HEALTH_CHECK_HOUR", 10))
+    health_minute = int(os.environ.get("HEALTH_CHECK_MINUTE", 0))
 
     celery_instance.conf.beat_schedule = {
         # Collecte RSS toutes les heures
@@ -100,6 +103,13 @@ def make_celery(flask_app=None) -> Celery:
             "task": "services.scheduler_tasks.send_weekly_emails",
             "schedule": crontab(hour=weekly_hour, minute=(weekly_minute + 30) % 60,
                                 day_of_week=weekly_day_num),
+        },
+        # Vérification santé quotidienne (10h00 par défaut)
+        # Vérifie que les synthèses de J-1 ont été générées et les emails envoyés.
+        # Envoie un email d'alerte à ADMIN_EMAIL si anomalie détectée.
+        "check-daily-health": {
+            "task": "services.scheduler_tasks.check_daily_health",
+            "schedule": crontab(hour=health_hour, minute=health_minute),
         },
         # Nettoyage des anciens articles (tous les dimanches à 3h00)
         "cleanup-old-articles": {
@@ -836,3 +846,194 @@ def cleanup_old_articles():
 
         logger.info(f"Nettoyage : {deleted} articles supprimés (rétention {retention_days}j)")
         return {"deleted": deleted}
+
+
+# ─── Tâche : Vérification quotidienne de l'état des synthèses et emails ──────
+@celery_app.task(name="services.scheduler_tasks.check_daily_health")
+def check_daily_health():
+    """
+    Vérifie quotidiennement que les synthèses de J-1 ont bien été générées
+    et que les emails correspondants ont bien été envoyés.
+    Envoie un email d'alerte à l'administrateur en cas d'anomalie.
+    Planifiée à 10h00 (après la génération 7h00 et l'envoi 7h30).
+    """
+    flask_app = _get_flask_app()
+    with flask_app.app_context():
+        from main import db
+        from models.user import User
+        from models.category import Category
+        from models.synthesis import Synthesis
+        from models.article import Article
+        from models.feed import Feed
+        from services.email_sender import send_email
+
+        target_date = date.today() - timedelta(days=1)
+        day_start = datetime.combine(target_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+        day_end = day_start + timedelta(days=1)
+
+        logger.info(f"Vérification santé quotidienne pour J-1 = {target_date}")
+
+        issues = []   # liste de chaînes décrivant les anomalies détectées
+        report = []   # lignes du rapport complet (OK + anomalies)
+
+        users = User.query.filter_by(is_active=True).all()
+
+        for user in users:
+            categories = Category.query.filter_by(user_id=user.id, active=True).all()
+
+            for category in categories:
+                # ── Compter les articles collectés pour cette catégorie sur J-1 ──
+                articles_count = (
+                    db.session.query(Article)
+                    .join(Article.feed)
+                    .filter(
+                        Feed.user_id == user.id,
+                        Feed.category_id == category.id,
+                        Article.fetched_at >= day_start,
+                        Article.fetched_at < day_end,
+                    )
+                    .count()
+                )
+
+                # ── Chercher la synthèse quotidienne de J-1 ──
+                synthesis = Synthesis.query.filter_by(
+                    user_id=user.id,
+                    category_id=category.id,
+                    type=Synthesis.TYPE_DAILY,
+                ).filter(
+                    Synthesis.period_start >= day_start,
+                    Synthesis.period_start < day_end,
+                ).first()
+
+                if articles_count == 0:
+                    # Pas d'articles → pas de synthèse attendue, c'est normal
+                    report.append(
+                        f"  [{user.email}] {category.name} : "
+                        f"0 article collecté — synthèse non attendue"
+                    )
+                    continue
+
+                if synthesis is None:
+                    msg = (
+                        f"[{user.email}] {category.name} : "
+                        f"{articles_count} articles collectés mais AUCUNE synthèse générée"
+                    )
+                    issues.append(msg)
+                    report.append(f"  ANOMALIE — {msg}")
+                else:
+                    # Synthèse présente — vérifier l'envoi email
+                    email_status = "email envoyé" if synthesis.email_sent else "email NON envoyé"
+                    if not synthesis.email_sent:
+                        msg = (
+                            f"[{user.email}] {category.name} : "
+                            f"synthèse générée ({synthesis.articles_count} articles) "
+                            f"mais EMAIL NON ENVOYÉ"
+                        )
+                        issues.append(msg)
+                        report.append(f"  ANOMALIE — {msg}")
+                    else:
+                        report.append(
+                            f"  OK — [{user.email}] {category.name} : "
+                            f"synthèse OK ({synthesis.articles_count} articles), {email_status}"
+                        )
+
+        report_text = "\n".join(report) if report else "  Aucune catégorie active trouvée."
+        n_issues = len(issues)
+
+        logger.info(
+            f"Vérification santé terminée : {n_issues} anomalie(s) détectée(s) "
+            f"pour J-1 = {target_date}"
+        )
+
+        # ── Envoyer l'email d'alerte si anomalies ou toujours (selon config) ──
+        admin_email = os.environ.get("ADMIN_EMAIL", "")
+        always_report = os.environ.get("HEALTH_CHECK_ALWAYS_REPORT", "false").lower() == "true"
+
+        if not admin_email:
+            logger.warning(
+                "ADMIN_EMAIL non configuré — impossible d'envoyer le rapport de santé"
+            )
+            return {"issues": n_issues, "admin_email": None}
+
+        if n_issues == 0 and not always_report:
+            logger.info("Aucune anomalie détectée — rapport non envoyé (HEALTH_CHECK_ALWAYS_REPORT=false)")
+            return {"issues": 0, "admin_email": admin_email}
+
+        # ── Construire l'email ──
+        date_str = target_date.strftime("%d/%m/%Y")
+        if n_issues == 0:
+            subject = f"RSS Veille — Rapport santé J-1 ({date_str}) : tout est OK"
+            header_color = "#10B981"
+            header_icon = "✅"
+            header_text = "Tout est en ordre"
+            summary_html = "<p style='color:#065F46;'>Toutes les synthèses ont été générées et les emails envoyés correctement.</p>"
+        else:
+            subject = f"RSS Veille — ALERTE santé J-1 ({date_str}) : {n_issues} anomalie(s)"
+            header_color = "#EF4444"
+            header_icon = "⚠️"
+            header_text = f"{n_issues} anomalie(s) détectée(s)"
+            issues_html = "".join(
+                f"<li style='margin-bottom:6px;color:#7F1D1D;'>{iss}</li>"
+                for iss in issues
+            )
+            summary_html = f"""
+            <div style='background:#FEF2F2;border-left:4px solid #EF4444;
+                        padding:15px;border-radius:6px;margin-bottom:20px;'>
+                <h4 style='color:#991B1B;margin-top:0;'>Anomalies détectées</h4>
+                <ul style='margin:0;padding-left:20px;'>{issues_html}</ul>
+            </div>
+            <p style='color:#374151;font-size:13px;'>
+                Actions recommandées :<br>
+                &bull; Vérifier les logs Celery : <code>podman logs rss_celery_worker</code><br>
+                &bull; Relancer manuellement depuis <strong>/admin/tasks/</strong>
+            </p>
+            """
+
+        # Tableau de rapport complet
+        report_rows = ""
+        for line in report:
+            is_anomaly = "ANOMALIE" in line
+            bg = "#FEF2F2" if is_anomaly else "#F0FDF4"
+            color = "#7F1D1D" if is_anomaly else "#065F46"
+            report_rows += (
+                f"<tr style='background:{bg};'>"
+                f"<td style='padding:5px 10px;font-size:12px;color:{color};'>{line.strip()}</td>"
+                f"</tr>"
+            )
+
+        html_body = f"""
+        <html><body style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#1F2937;">
+            <div style="background:{header_color};padding:20px;border-radius:8px 8px 0 0;">
+                <h1 style="color:white;margin:0;font-size:20px;">
+                    {header_icon} RSS Veille — Rapport santé quotidien
+                </h1>
+                <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:14px;">
+                    Vérification pour J-1 = <strong>{date_str}</strong> — {header_text}
+                </p>
+            </div>
+            <div style="padding:20px;background:white;border:1px solid #E5E7EB;
+                        border-top:none;border-radius:0 0 8px 8px;">
+                {summary_html}
+                <h4 style="color:#6B7280;font-size:12px;text-transform:uppercase;
+                           letter-spacing:0.05em;margin-top:24px;">
+                    Rapport complet par catégorie
+                </h4>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <tbody>{report_rows}</tbody>
+                </table>
+                <hr style="border:none;border-top:1px solid #E5E7EB;margin:20px 0;">
+                <p style="color:#9CA3AF;font-size:11px;">
+                    RSS Veille — Rapport de santé automatique.
+                    Configurer HEALTH_CHECK_ALWAYS_REPORT=true pour recevoir ce rapport même sans anomalie.
+                </p>
+            </div>
+        </body></html>
+        """
+
+        success = send_email([admin_email], subject, html_body)
+        if success:
+            logger.info(f"Rapport de santé envoyé à {admin_email} ({n_issues} anomalie(s))")
+        else:
+            logger.error(f"Échec de l'envoi du rapport de santé à {admin_email}")
+
+        return {"issues": n_issues, "admin_email": admin_email, "report_sent": success}

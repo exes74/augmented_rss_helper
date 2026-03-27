@@ -420,6 +420,26 @@ def reset_last_fetched():
     return redirect(url_for("admin_tasks.index"))
 
 
+@admin_tasks_bp.route("/run/check-health", methods=["POST"])
+@login_required
+@admin_required
+def run_check_health():
+    """Déclenche manuellement la vérification de santé des synthèses et emails."""
+    try:
+        from services.scheduler_tasks import check_daily_health
+        task = check_daily_health.delay()
+        flash(
+            f"Vérification de santé lancée (task_id: {task.id}). "
+            f"Un email d'alerte sera envoyé à l'administrateur si des anomalies sont détectées.",
+            "success"
+        )
+        logger.info(f"Vérification santé déclenchée manuellement par {current_user.email}")
+    except Exception as e:
+        flash(f"Erreur lors du lancement de la vérification : {str(e)}", "danger")
+        logger.error(f"Erreur déclenchement check_daily_health : {e}", exc_info=True)
+    return redirect(url_for("admin_tasks.index"))
+
+
 @admin_tasks_bp.route("/status")
 @login_required
 @admin_required

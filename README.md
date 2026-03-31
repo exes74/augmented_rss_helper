@@ -189,3 +189,20 @@ docker compose up -d --build
 ```bash
 docker compose exec postgres pg_dump -U rssuser rssveille > backup.sql
 ```
+
+---
+Capture d'écran:
+<img width="1337" height="1062" alt="{C68AF6BB-FE3C-4D7B-9213-C337FB819DC2}" src="https://github.com/user-attachments/assets/d50b4a05-8101-4bc2-9be2-95a253db358b" />
+<img width="1286" height="1109" alt="{CFD77A0A-2CBE-4CA6-882F-82545591CE93}" src="https://github.com/user-attachments/assets/8c91c942-f53e-4cf5-97fb-12fe1717eab2" />
+<img width="1285" height="1051" alt="{836DFD87-BA9C-4C66-9B79-AC31C4BD39EE}" src="https://github.com/user-attachments/assets/1b70ff20-8eb7-431c-8e07-0334cefb7d33" />
+<img width="1403" height="1082" alt="{23267037-2329-41B2-8781-BC6563C760DF}" src="https://github.com/user-attachments/assets/69419909-bdf4-40a5-aeef-ab7455b91317" />
+<img width="1320" height="644" alt="{7CB88508-4946-4C2B-AB08-84CEA6272797}" src="https://github.com/user-attachments/assets/28be8765-767f-48ca-bd37-9d13820bdc03" />
+<img width="1291" height="1263" alt="{24B978BA-A779-48E8-8ACB-2135425D01BE}" src="https://github.com/user-attachments/assets/b2eb4306-8f66-4a0b-9286-99e5625cb18f" />
+
+
+
+
+
+
+
+

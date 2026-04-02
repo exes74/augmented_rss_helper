@@ -48,7 +48,8 @@ class AISynthesizer:
         # Tous les articles, sans limite de nombre ni troncature du contenu
         articles_text = self._format_articles_for_prompt(articles, max_articles=None, truncate_content=False)
 
-        prompt = f"""Tu es un expert en veille informationnelle. Analyse les articles suivants collectés le {date_str} dans la catégorie "{category_name}" et génère une synthèse structurée.
+        # Prompt par défaut (codé en dur)
+        default_prompt = f"""Tu es un expert en veille informationnelle. Analyse les articles suivants collectés le {date_str} dans la catégorie "{category_name}" et génère une synthèse structurée.
 
 ARTICLES DU JOUR ({len(articles)} articles) :
 {articles_text}
@@ -92,6 +93,24 @@ FORMAT ATTENDU :
 ...
 
 """
+
+        # Utiliser le prompt personnalisé de la base si disponible
+        try:
+            from models.prompt_config import PromptConfig
+            custom = PromptConfig.get_content(PromptConfig.KEY_DAILY)
+            if custom:
+                prompt = custom.format(
+                    date_str=date_str,
+                    category_name=category_name,
+                    articles_count=len(articles),
+                    articles_text=articles_text,
+                )
+                logger.debug("Prompt quotidien personnalisé utilisé")
+            else:
+                prompt = default_prompt
+        except Exception as e:
+            logger.warning(f"Impossible de charger le prompt personnalisé : {e}")
+            prompt = default_prompt
 
         return self._call_llm(prompt, max_tokens=2000)
 
@@ -145,7 +164,7 @@ FORMAT ATTENDU :
             syntheses_text += s["content"] + "\n"
 
         # ─── Prompt 1 : Super-synthèse + Faits + Tendances ───
-        prompt_synthese = f"""Tu es un expert en veille informationnelle. \
+        default_prompt_synthese = f"""Tu es un expert en veille informationnelle. \
 Tu disposes des synthèses quotidiennes de la semaine {period} pour la catégorie "{category_name}".
 Ta mission : produire une super-synthèse hebdomadaire à partir de ces synthèses.
 
@@ -175,11 +194,29 @@ Génère une réponse structurée avec les 3 sections suivantes, séparées par 
 • [Tendance 2 : explication]
 ...
 """
+        # Utiliser le prompt personnalisé de la base si disponible
+        try:
+            from models.prompt_config import PromptConfig
+            custom_weekly = PromptConfig.get_content(PromptConfig.KEY_WEEKLY)
+            if custom_weekly:
+                prompt_synthese = custom_weekly.format(
+                    period=period,
+                    category_name=category_name,
+                    nb_days=len(daily_syntheses),
+                    total_articles=total_articles,
+                    syntheses_text=syntheses_text,
+                )
+                logger.debug("Prompt hebdomadaire personnalisé utilisé")
+            else:
+                prompt_synthese = default_prompt_synthese
+        except Exception as e:
+            logger.warning(f"Impossible de charger le prompt hebdomadaire personnalisé : {e}")
+            prompt_synthese = default_prompt_synthese
 
         # ─── Prompt 2 : Cyber Brief LinkedIn (prompt utilisateur, verbatim) ───
         week_start_str = week_start.strftime("%d")
         week_end_str = week_end.strftime("%d %B %Y")
-        prompt_linkedin = f"""Tu es un expert en cybersécurité, style analytique, légèrement impertinent.
+        default_prompt_linkedin = f"""Tu es un expert en cybersécurité, style analytique, légèrement impertinent.
 Audience : professionnels cyber (RSSI, analystes, pentesters) avec quelques profils mixtes.
 
 Tu reçois {len(daily_syntheses)} synthèses quotidiennes au format suivant :
@@ -272,10 +309,28 @@ MOTS INTERDITS :
 tout consensus mou / toute conclusion qui rassure sans raison
 """
 
+        # Utiliser le prompt Cyber Brief personnalisé si disponible
+        try:
+            from models.prompt_config import PromptConfig
+            custom_cyber = PromptConfig.get_content(PromptConfig.KEY_CYBERBRIEF)
+            if custom_cyber:
+                prompt_linkedin = custom_cyber.format(
+                    nb_days=len(daily_syntheses),
+                    syntheses_text=syntheses_text,
+                    week_start_str=week_start_str,
+                    week_end_str=week_end_str,
+                )
+                logger.debug("Prompt Cyber Brief personnalisé utilisé")
+            else:
+                prompt_linkedin = default_prompt_linkedin
+        except Exception as e:
+            logger.warning(f"Impossible de charger le prompt Cyber Brief personnalisé : {e}")
+            prompt_linkedin = default_prompt_linkedin
+
         # Appel LLM en deux étapes
         logger.info(f"Super-synthèse hebdo — étape 1 : synthèse + faits + tendances")
         content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=3000)
-        if category_name == 'CyberSecurity':
+        if 'Cyber' in category_name:
             logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
             linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
         else:

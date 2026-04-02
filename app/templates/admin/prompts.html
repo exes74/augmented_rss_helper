@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Configuration des prompts IA{% endblock %}
+
+{% block head %}
+<style>
+  .prompt-textarea {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 320px;
+  }
+  .badge-custom { background: #EEF2FF; color: #4338CA; }
+  .badge-default { background: #F3F4F6; color: #6B7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- En-tête -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Configuration des prompts IA</h1>
+      <p class="text-sm text-gray-500 mt-1">
+        Personnalisez les instructions envoyées au LLM pour chaque type de synthèse.
+        Si un prompt n'est pas personnalisé, le prompt par défaut du code est utilisé.
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('admin_tasks.index') }}"
+         class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700
+                text-white text-sm font-medium rounded-lg transition-colors">
+        ⚙️ Tâches &amp; Collecte
+      </a>
+      <a href="{{ url_for('admin.index') }}"
+         class="inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300
+                text-gray-700 text-sm font-medium rounded-lg transition-colors">
+        ← Administration
+      </a>
+    </div>
+  </div>
+
+  <!-- Légende des variables -->
+  <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+    <strong>Variables disponibles dans les prompts :</strong>
+    les variables entre accolades <code class="bg-blue-100 px-1 rounded">{variable}</code>
+    sont remplacées automatiquement lors de la génération.
+    Consultez la description de chaque prompt pour connaître les variables disponibles.
+  </div>
+
+  <!-- Un bloc par prompt -->
+  {% for key, p in prompts.items() %}
+  <div class="bg-white rounded-xl border border-gray-200 overflow-hidden" id="block-{{ key }}">
+
+    <!-- Titre du bloc -->
+    <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+      <div>
+        <h2 class="font-semibold text-gray-900 text-lg">{{ p.label }}</h2>
+        <p class="text-sm text-gray-500 mt-0.5">{{ p.description }}</p>
+      </div>
+      <div class="flex items-center gap-3">
+        {% if p.is_custom %}
+          <span class="text-xs font-medium px-2.5 py-1 rounded-full badge-custom">
+            Personnalisé
+          </span>
+          {% if p.updated_at %}
+          <span class="text-xs text-gray-400">
+            Mis à jour le {{ p.updated_at.strftime('%d/%m/%Y à %H:%M') }}
+            {% if p.updated_by %}par {{ p.updated_by }}{% endif %}
+          </span>
+          {% endif %}
+        {% else %}
+          <span class="text-xs font-medium px-2.5 py-1 rounded-full badge-default">
+            Par défaut
+          </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Formulaire d'édition -->
+    <div class="p-6">
+      <form method="POST" action="{{ url_for('admin_prompts.save') }}"
+            onsubmit="return confirm('Enregistrer ce prompt personnalisé ?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="prompt_key" value="{{ key }}">
+
+        <div class="mb-3 flex items-center justify-between">
+          <label class="text-sm font-medium text-gray-700">
+            Contenu du prompt
+          </label>
+          <button type="button"
+                  onclick="loadDefault('{{ key }}')"
+                  class="text-xs text-indigo-600 hover:text-indigo-800 underline">
+            Charger le prompt par défaut
+          </button>
+        </div>
+
+        <textarea
+          id="textarea-{{ key }}"
+          name="content"
+          class="prompt-textarea w-full border border-gray-300 rounded-lg px-3 py-2
+                 focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+          placeholder="Laissez vide pour utiliser le prompt par défaut du code…"
+        >{{ p.content }}</textarea>
+
+        <div class="mt-3 flex items-center gap-3">
+          <button type="submit"
+                  class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white
+                         text-sm font-medium rounded-lg transition-colors">
+            💾 Enregistrer
+          </button>
+
+          {% if p.is_custom %}
+          <form method="POST" action="{{ url_for('admin_prompts.reset') }}"
+                onsubmit="return confirm('Remettre ce prompt à sa valeur par défaut ?')"
+                style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="prompt_key" value="{{ key }}">
+            <button type="submit"
+                    class="px-5 py-2 bg-red-50 hover:bg-red-100 text-red-700
+                           text-sm font-medium rounded-lg border border-red-200 transition-colors">
+              ↩ Remettre par défaut
+            </button>
+          </form>
+          {% endif %}
+
+          <span class="text-xs text-gray-400" id="char-count-{{ key }}">
+            {{ p.content | length }} caractères
+          </span>
+        </div>
+      </form>
+
+      <!-- Aperçu du prompt par défaut (collapsible) -->
+      <details class="mt-4">
+        <summary class="text-xs text-gray-500 cursor-pointer hover:text-gray-700 select-none">
+          Voir le prompt par défaut
+        </summary>
+        <pre class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs
+                    text-gray-600 overflow-x-auto whitespace-pre-wrap">{{ p.default }}</pre>
+      </details>
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Compteur de caractères en temps réel
+document.querySelectorAll('textarea[id^="textarea-"]').forEach(function(ta) {
+  var key = ta.id.replace('textarea-', '');
+  var counter = document.getElementById('char-count-' + key);
+  ta.addEventListener('input', function() {
+    counter.textContent = ta.value.length + ' caractères';
+  });
+});
+
+// Charger le prompt par défaut via l'API
+function loadDefault(key) {
+  if (!confirm('Remplacer le contenu actuel par le prompt par défaut ?')) return;
+  fetch('/admin/prompts/default/' + key)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var ta = document.getElementById('textarea-' + key);
+      ta.value = data.default || '';
+      var counter = document.getElementById('char-count-' + key);
+      counter.textContent = ta.value.length + ' caractères';
+    })
+    .catch(function(e) {
+      alert('Erreur lors du chargement du prompt par défaut : ' + e);
+    });
+}
+</script>
+{% endblock %}

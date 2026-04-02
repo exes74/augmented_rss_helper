@@ -32,6 +32,17 @@ def _run_incremental_migrations(app: Flask) -> None:
         "CREATE INDEX IF NOT EXISTS ix_articles_enriched ON articles (enriched)",
         # v3 : author en TEXT pour supporter les longues listes d'auteurs (ex: arXiv)
         "ALTER TABLE articles ALTER COLUMN author TYPE TEXT",
+        # v4 : table de configuration des prompts LLM
+        """
+        CREATE TABLE IF NOT EXISTS prompt_configs (
+            id SERIAL PRIMARY KEY,
+            prompt_key VARCHAR(64) NOT NULL UNIQUE,
+            content TEXT NOT NULL,
+            updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+            updated_by VARCHAR(255)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_prompt_configs_prompt_key ON prompt_configs (prompt_key)",
     ]
 
     try:
@@ -148,6 +159,7 @@ def register_blueprints(app: Flask) -> None:
     from routes.settings import settings_bp
     from routes.admin import admin_bp
     from routes.admin_tasks import admin_tasks_bp
+    from routes.admin_prompts import admin_prompts_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -157,6 +169,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(settings_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(admin_tasks_bp)
+    app.register_blueprint(admin_prompts_bp)
 
 
 def setup_logging(app: Flask) -> None:

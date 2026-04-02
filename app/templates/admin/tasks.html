@@ -5,9 +5,23 @@
 {% block content %}
 <div class="max-w-5xl mx-auto">
 
-  <div class="mb-6">
-    <h1 class="text-2xl font-bold text-gray-900">⚙️ Gestion des tâches</h1>
-    <p class="text-gray-500 mt-1">Déclenchez manuellement la collecte RSS, les synthèses et les emails.</p>
+  <div class="mb-6 flex items-start justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">⚙️ Gestion des tâches</h1>
+      <p class="text-gray-500 mt-1">Déclenchez manuellement la collecte RSS, les synthèses et les emails.</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{{ url_for('admin_prompts.index') }}"
+         class="inline-flex items-center px-4 py-2 bg-violet-600 hover:bg-violet-700
+                text-white text-sm font-medium rounded-lg transition-colors">
+        🤖 Prompts IA
+      </a>
+      <a href="{{ url_for('admin.index') }}"
+         class="inline-flex items-center px-4 py-2 bg-gray-200 hover:bg-gray-300
+                text-gray-700 text-sm font-medium rounded-lg transition-colors">
+        ← Administration
+      </a>
+    </div>
   </div>
 
   <!-- État Celery / Redis -->

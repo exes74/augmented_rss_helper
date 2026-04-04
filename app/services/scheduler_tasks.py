@@ -881,6 +881,13 @@ def check_daily_health():
         for user in users:
             categories = Category.query.filter_by(user_id=user.id, active=True).all()
 
+            # Récupérer les préférences d'envoi email de l'utilisateur
+            prefs = user.preferences or {}
+            daily_email_cats = prefs.get("daily_categories", None)
+            # None = aucune préférence configurée (on considère que tout est activé)
+            # [] = liste vide (aucune catégorie activée)
+            # [1, 2, ...] = liste des catégories activées
+
             for category in categories:
                 # ── Compter les articles collectés pour cette catégorie sur J-1 ──
                 articles_count = (
@@ -922,8 +929,17 @@ def check_daily_health():
                     report.append(f"  ANOMALIE — {msg}")
                 else:
                     # Synthèse présente — vérifier l'envoi email
+                    # Déterminer si l'envoi email est activé pour cette catégorie
+                    if daily_email_cats is None:
+                        # Pas de préférence configurée → on considère l'email attendu
+                        email_expected = True
+                    else:
+                        # L'email est attendu seulement si la catégorie est dans la liste
+                        email_expected = category.id in daily_email_cats
+
                     email_status = "email envoyé" if synthesis.email_sent else "email NON envoyé"
-                    if not synthesis.email_sent:
+
+                    if not synthesis.email_sent and email_expected:
                         msg = (
                             f"[{user.email}] {category.name} : "
                             f"synthèse générée ({synthesis.articles_count} articles) "
@@ -931,6 +947,12 @@ def check_daily_health():
                         )
                         issues.append(msg)
                         report.append(f"  ANOMALIE — {msg}")
+                    elif not synthesis.email_sent and not email_expected:
+                        report.append(
+                            f"  OK — [{user.email}] {category.name} : "
+                            f"synthèse OK ({synthesis.articles_count} articles), "
+                            f"email désactivé pour cette catégorie (normal)"
+                        )
                     else:
                         report.append(
                             f"  OK — [{user.email}] {category.name} : "

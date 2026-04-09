@@ -112,7 +112,7 @@ FORMAT ATTENDU :
             logger.warning(f"Impossible de charger le prompt personnalisé : {e}")
             prompt = default_prompt
 
-        return self._call_llm(prompt, max_tokens=2000)
+        return self._call_llm(prompt, max_tokens=4000)
 
     def generate_weekly_synthesis(
         self,
@@ -329,10 +329,10 @@ tout consensus mou / toute conclusion qui rassure sans raison
 
         # Appel LLM en deux étapes
         logger.info(f"Super-synthèse hebdo — étape 1 : synthèse + faits + tendances")
-        content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=3000)
+        content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=5000)
         if 'Cyber' in category_name:
             logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
-            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=1000)
+            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=2000)
         else:
              linkedin_raw, tokens_2 = '',0
         # Parser les sections de la synthèse
@@ -575,10 +575,35 @@ tout consensus mou / toute conclusion qui rassure sans raison
 
             response = client.chat.completions.create(**call_kwargs)
 
-            content = response.choices[0].message.content
+            choice = response.choices[0]
+            content = choice.message.content
+            finish_reason = choice.finish_reason
             tokens_used = response.usage.total_tokens if response.usage else 0
 
-            logger.info(f"OpenAI : {tokens_used} tokens utilisés (modèle={self.openai_model})")
+            logger.info(
+                f"OpenAI : {tokens_used} tokens utilisés (modèle={self.openai_model}, "
+                f"finish_reason={finish_reason})"
+            )
+
+            # Avec gpt-5-* et o-series, content peut être None si la réponse est tronquée
+            # ou si le modèle n'a pas pu générer de réponse (finish_reason='length')
+            if content is None:
+                logger.error(
+                    f"OpenAI a retourné content=None (finish_reason={finish_reason}). "
+                    f"Augmenter max_completion_tokens ou réduire LLM_MAX_PROMPT_CHARS."
+                )
+                return (
+                    f"[Erreur : la réponse du modèle est vide (finish_reason={finish_reason}). "
+                    f"Essayez de régénérer ou de réduire le nombre d'articles.]",
+                    tokens_used
+                )
+
+            if finish_reason == "length":
+                logger.warning(
+                    f"OpenAI : réponse tronquée (finish_reason=length, max_tokens={max_tokens}). "
+                    f"Considérer d'augmenter max_completion_tokens."
+                )
+
             return content, tokens_used
 
         except Exception as e:

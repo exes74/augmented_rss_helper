@@ -426,6 +426,9 @@ tout consensus mou / toute conclusion qui rassure sans raison
         Returns:
             Tuple (response_text, tokens_used)
         """
+        # Tronquer le prompt si nécessaire pour éviter les erreurs TPM 429
+        prompt = self._truncate_prompt_to_limit(prompt)
+
         if self.provider == "openai":
             return self._call_openai(prompt, max_tokens)
         elif self.provider == "ollama":
@@ -475,8 +478,58 @@ tout consensus mou / toute conclusion qui rassure sans raison
             return f"Erreur lors de la génération de la synthèse : {str(e)}", 0
 
 
+    # Limite de tokens en entrée (input) par appel pour éviter les erreurs TPM 429.
+    # gpt-5-nano : 200 000 TPM. On vise ~150 000 tokens max par requête pour garder
+    # de la marge pour les autres requêtes simultanées.
+    # Approximation : 1 token ≈ 4 caractères (français/anglais mélangé).
+    _MAX_PROMPT_CHARS = int(os.environ.get("LLM_MAX_PROMPT_CHARS", 400_000))  # ~100k tokens
+
+    def _truncate_prompt_to_limit(self, prompt: str) -> str:
+        """
+        Tronque le prompt si sa taille dépasse _MAX_PROMPT_CHARS.
+        Essaie de couper proprement après un article complet (ligne vide)
+        plutôt qu'en plein milieu d'un texte.
+        """
+        limit = self._MAX_PROMPT_CHARS
+        if len(prompt) <= limit:
+            return prompt
+
+        logger.warning(
+            f"Prompt trop long ({len(prompt)} caractères > {limit}) — troncature en cours"
+        )
+
+        # Couper au dernier saut de ligne double avant la limite
+        truncated = prompt[:limit]
+        last_break = truncated.rfind("\n\n")
+        if last_break > limit // 2:  # Ne couper que si on garde au moins la moitié
+            truncated = truncated[:last_break]
+
+        # Ajouter une note pour indiquer au LLM que le contenu a été tronqué
+        truncated += (
+            "\n\n[NOTE : La liste d'articles a été tronquée pour respecter "
+            "les limites de l'API. Génère la synthèse à partir des articles fournis.]"
+        )
+        logger.info(
+            f"Prompt tronqué : {len(prompt)} → {len(truncated)} caractères "
+            f"(~{len(truncated)//4} tokens estimés)"
+        )
+        return truncated
+
+    # Modèles OpenAI qui nécessitent max_completion_tokens et temperature=1
+    _OPENAI_NEW_API_MODELS = ("gpt-5", "o1", "o3", "o4")
+
+    def _openai_uses_new_api(self) -> bool:
+        """Retourne True si le modèle nécessite max_completion_tokens et temperature=1."""
+        model = self.openai_model.lower()
+        return any(model.startswith(prefix) for prefix in self._OPENAI_NEW_API_MODELS)
+
     def _call_openai(self, prompt: str, max_tokens: int = 1000) -> Tuple[str, int]:
-        """Appelle l'API OpenAI."""
+        """Appelle l'API OpenAI.
+
+        Gère automatiquement les différences de paramètres selon le modèle :
+        - Anciens modèles (gpt-4.x, gpt-3.5) : max_tokens + temperature=0.7
+        - Nouveaux modèles (gpt-5-*, o1, o3) : max_completion_tokens + temperature=1
+        """
         # Vérification préalable de la clé API
         if not self.openai_api_key:
             logger.error("Clé API OpenAI manquante (OPENAI_API_KEY non définie dans .env)")
@@ -493,9 +546,11 @@ tout consensus mou / toute conclusion qui rassure sans raison
 
             client = OpenAI(api_key=self.openai_api_key)
 
-            response = client.chat.completions.create(
-                model=self.openai_model,
-                messages=[
+            # Adapter les paramètres selon le modèle
+            new_api = self._openai_uses_new_api()
+            call_kwargs = {
+                "model": self.openai_model,
+                "messages": [
                     {
                         "role": "system",
                         "content": "Tu es un assistant expert en veille informationnelle et création de contenu professionnel. Tu réponds toujours en français."
@@ -505,9 +560,20 @@ tout consensus mou / toute conclusion qui rassure sans raison
                         "content": prompt
                     }
                 ],
-                max_completion_tokens=max_tokens,
-                temperature=1,
-            )
+            }
+            if new_api:
+                # gpt-5-* et modèles o-series : max_completion_tokens, temperature forcée à 1
+                call_kwargs["max_completion_tokens"] = max_tokens
+                # temperature=1 est la seule valeur supportée, on ne la passe pas
+                # (valeur par défaut) pour éviter l'erreur 400
+                logger.debug(f"Appel OpenAI new-API : max_completion_tokens={max_tokens}")
+            else:
+                # Anciens modèles : max_tokens + temperature
+                call_kwargs["max_tokens"] = max_tokens
+                call_kwargs["temperature"] = 0.7
+                logger.debug(f"Appel OpenAI legacy-API : max_tokens={max_tokens}, temperature=0.7")
+
+            response = client.chat.completions.create(**call_kwargs)
 
             content = response.choices[0].message.content
             tokens_used = response.usage.total_tokens if response.usage else 0

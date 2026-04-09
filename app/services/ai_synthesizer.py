@@ -23,6 +23,10 @@ class AISynthesizer:
         self.max_tokens_weekly = config.get("LLM_MAX_TOKENS_WEEKLY", 1000000)
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
         self.anthropic_model = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-5")
+        # Pour les modèles de raisonnement (gpt-5-*, o1, o3), max_completion_tokens
+        # inclut les tokens de raisonnement internes. Il faut une valeur élevée.
+        # Défaut : 16000 (suffisant pour la synthèse + raisonnement gpt-5-nano)
+        self.max_output_tokens = int(config.get("LLM_MAX_OUTPUT_TOKENS", 16000))
 
     def generate_daily_synthesis(
         self,
@@ -563,10 +567,14 @@ tout consensus mou / toute conclusion qui rassure sans raison
             }
             if new_api:
                 # gpt-5-* et modèles o-series : max_completion_tokens, temperature forcée à 1
-                call_kwargs["max_completion_tokens"] = max_tokens
+                # Ces modèles de raisonnement consomment des tokens internes (thinking)
+                # qui comptent dans max_completion_tokens — il faut une valeur élevée.
+                # On prend le max entre max_tokens demandé et LLM_MAX_OUTPUT_TOKENS (défaut 16000)
+                effective_max = max(max_tokens, self.max_output_tokens)
+                call_kwargs["max_completion_tokens"] = effective_max
                 # temperature=1 est la seule valeur supportée, on ne la passe pas
                 # (valeur par défaut) pour éviter l'erreur 400
-                logger.debug(f"Appel OpenAI new-API : max_completion_tokens={max_tokens}")
+                logger.debug(f"Appel OpenAI new-API : max_completion_tokens={effective_max} (demandé={max_tokens}, max_output={self.max_output_tokens})")
             else:
                 # Anciens modèles : max_tokens + temperature
                 call_kwargs["max_tokens"] = max_tokens
@@ -659,4 +667,7 @@ def get_synthesizer(app=None) -> AISynthesizer:
         "OLLAMA_MODEL": config.get("OLLAMA_MODEL", "llama3.1"),
         "LLM_MAX_TOKENS_DAILY": config.get("LLM_MAX_TOKENS_DAILY", 500000),
         "LLM_MAX_TOKENS_WEEKLY": config.get("LLM_MAX_TOKENS_WEEKLY", 1000000),
+        # Pour les modèles de raisonnement (gpt-5-*, o1, o3) : limite de tokens de sortie
+        # (inclut les tokens de raisonnement internes). Défaut : 16000.
+        "LLM_MAX_OUTPUT_TOKENS": config.get("LLM_MAX_OUTPUT_TOKENS", 16000),
     })

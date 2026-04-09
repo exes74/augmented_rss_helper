@@ -40,7 +40,7 @@ class AISynthesizer:
 
         Returns:
             Tuple (synthèse_texte, tokens_utilisés)
-        """
+        """ 
         if not articles:
             return "Aucun article collecté pour cette catégorie aujourd'hui.", 0
 
@@ -505,7 +505,7 @@ tout consensus mou / toute conclusion qui rassure sans raison
                         "content": prompt
                     }
                 ],
-                max_tokens=max_tokens,
+                max_completion_tokens=max_tokens,
                 temperature=0.7,
             )
 

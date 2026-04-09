@@ -506,7 +506,7 @@ tout consensus mou / toute conclusion qui rassure sans raison
                     }
                 ],
                 max_completion_tokens=max_tokens,
-                temperature=0.7,
+                temperature=1,
             )
 
             content = response.choices[0].message.content

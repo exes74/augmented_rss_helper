@@ -53,50 +53,66 @@ class AISynthesizer:
         articles_text = self._format_articles_for_prompt(articles, max_articles=None, truncate_content=False)
 
         # Prompt par défaut (codé en dur)
-        default_prompt = f"""Tu es un expert en veille informationnelle. Analyse les articles suivants collectés le {date_str} dans la catégorie "{category_name}" et génère une synthèse structurée.
+        default_prompt = f"""Analyse les {articles_count} articles suivants, collectés le {date_str} dans la catégorie "{category_name}", 
+et génère une synthèse structurée selon le format ci-dessous.
 
-ARTICLES DU JOUR ({len(articles)} articles) :
+---
+ARTICLES ({articles_count} articles) :
+
 {articles_text}
+---
 
-CONSIGNES :
-- Synthèse de 500 à 700 mots
-- Style informatif et professionnel
-- Identifier les 5-10 points clés en repérant les informations mises en valeur par plusieurs articles
-- Identifier les 3-5 points clés concernant la France spécifiquement
-- Extraire les 3 à 5 tendances clés observées en croisant les articles
-- Citer les sources (noms des sites/médias)
-- Utiliser des bullet points pour la lisibilité
-- Langue : français
-- Prendre en compte TOUS les articles fournis
-- Ne mettre en gras QUE ce qui est entre les symboles "**"
+CONSIGNES DE RÉDACTION :
+- Longueur totale : 500 à 700 mots (hors titres et bullet points)
+- Style : informatif, professionnel, journalistique
+- Chaque bullet point cite entre parenthèses le(s) média(s) source(s) : (Le Monde, Reuters…)
+- Les points clés doivent refléter les informations mentionnées par PLUSIEURS articles (convergence)
+- La section France ne concerne que les faits explicitement situés en France
+- Les tendances sont des lectures transversales, pas des répétitions des points clés
 
-FORMAT ATTENDU :
+FORMAT DE SORTIE (à respecter strictement) :
+
 ## Synthèse du {date_str} — {category_name}
 
-**Résumé :** [4-5 phrases de résumé général]
+**Résumé :** [4 à 5 phrases synthétisant les grandes lignes de l'actualité du jour dans cette catégorie]
 
-**Points clés :**
+---
 
-• [Point 1 avec source]
-• [Point 2 avec source]
-• [Point 3 avec source]
-• [Point 4 avec source]
-• [Point 5 avec source]
+**Points clés :** *(5 à 10 points, ordre décroissant d'importance)*
+
+• [Point 1] *(Source)*
+• [Point 2] *(Source)*
+• [Point 3] *(Source)*
 ...
 
-**Et en France ?** 
+---
 
-• [Point 1 concernant la France spécifiquement avec source]
-• [Point 2 concernant la France spécifiquement avec source]
-• [Point 3 concernant la France spécifiquement avec source]
+**Et en France ?** *(3 à 5 points — uniquement si des articles couvrent l'actualité française)*
+
+• [Point 1 France] *(Source)*
+• [Point 2 France] *(Source)*
 ...
+> *(Si aucun article ne traite spécifiquement de la France, indiquer : "Aucune actualité française identifiée dans les sources du jour.")*
 
-**Tendances observées :**
-• [Tendance 1]
-• [Tendance 2]
+---
+
+**Tendances observées :** *(3 à 5 tendances de fond, issues du croisement des articles)*
+
+• **[Titre court de la tendance]** — [Explication en 1-2 phrases]
+• **[Titre court de la tendance]** — [Explication en 1-2 phrases]
 ...
 
 """
+        system_prompt = f"""Tu es un expert en veille informationnelle et en analyse de contenu médiatique. 
+Tu produis des synthèses journalistiques rigoureuses, factuelles et structurées à partir de flux RSS.
+
+Règles absolues :
+- Tu rédiges UNIQUEMENT en français
+- Tu traites la TOTALITÉ des articles fournis sans en ignorer aucun
+- Tu ne génères JAMAIS de contenu inventé : chaque affirmation doit être traceable à un article source
+- Tu utilises le gras UNIQUEMENT via la syntaxe Markdown "**texte**", jamais autrement
+- Tu respectes scrupuleusement le format de sortie demandé, sans y ajouter ni retirer de section
+        """
 
         # Utiliser le prompt personnalisé de la base si disponible
         try:
@@ -112,6 +128,7 @@ FORMAT ATTENDU :
                 logger.debug("Prompt quotidien personnalisé utilisé")
             else:
                 prompt = default_prompt
+                sys_prompt = system_prompt
         except Exception as e:
             logger.warning(f"Impossible de charger le prompt personnalisé : {e}")
             prompt = default_prompt
@@ -168,35 +185,68 @@ FORMAT ATTENDU :
             syntheses_text += s["content"] + "\n"
 
         # ─── Prompt 1 : Super-synthèse + Faits + Tendances ───
-        default_prompt_synthese = f"""Tu es un expert en veille informationnelle. \
-Tu disposes des synthèses quotidiennes de la semaine {period} pour la catégorie "{category_name}".
-Ta mission : produire une super-synthèse hebdomadaire à partir de ces synthèses.
+        default_prompt_synthese = f"""Tu disposes des synthèses quotidiennes de la semaine {period} pour la catégorie "{category_name}" 
+({nb_days} jours couverts, {total_articles} articles traités au total).
 
-SYNTHÈSES QUOTIDIENNES DE LA SEMAINE ({len(daily_syntheses)} jours, {total_articles} articles au total) :
+Ta mission : produire une super-synthèse hebdomadaire analytique — pas une concaténation des journées.
+
+---
+SYNTHÈSES QUOTIDIENNES :
+
 {syntheses_text}
+---
 
-CONSIGNES GÉNÉRALES :
-- Langue : français
-- Style professionnel et analytique
-- Citer les sources mentionnées dans les synthèses
-- Ne pas simplement concaténer les synthèses : produire une analyse transversale
+CONSIGNES :
+- Style : professionnel, analytique, orienté décideur
+- Identifier les fils conducteurs qui traversent plusieurs journées
+- Hiérarchiser : tous les faits ne se valent pas
+- Les faits marquants et les tendances doivent être complémentaires, pas redondants :
+    • Les faits marquants = ce qui s'est passé (factuel, daté, sourcé)
+    • Les tendances = ce que ça révèle (analytique, transversal, prospectif)
+- Chaque fait marquant doit mentionner la date et la/les source(s)
+- Chaque tendance doit être titrée et expliquée en 2-3 phrases
 
-Génère une réponse structurée avec les 3 sections suivantes, séparées par des marqueurs :
+FORMAT DE SORTIE (à respecter strictement) :
 
-===SYNTHESE===
-[Super-synthèse de la semaine en 400-500 mots. Identifier les fils conducteurs, les événements majeurs, les évolutions du secteur. Aller au-delà de la simple liste des faits : proposer une lecture transversale.]
+---
 
-===FAITS_MARQUANTS===
-[Liste des 5-7 faits marquants de la semaine, extraits des synthèses quotidiennes]
-• [Fait 1 — date — source]
-• [Fait 2 — date — source]
+## Synthèse hebdomadaire — {category_name} | {period}
+
+**Vue d'ensemble :**
+[3 à 4 phrases maximum. Quelle a été la tonalité dominante de la semaine ? 
+Quels grands thèmes ont structuré l'actualité ? Quel est le fait saillant absolu ?]
+
+---
+
+**Analyse de la semaine :** *(400 à 500 mots)*
+[Lecture transversale et structurée de la semaine. 
+Identifier les fils conducteurs entre les journées, les ruptures, les accélérations, 
+les contradictions éventuelles. Aller au-delà des faits : proposer une interprétation 
+du contexte et des dynamiques à l'œuvre. Organiser en sous-thèmes si pertinent.]
+
+---
+
+**Faits marquants :** *(5 à 7 faits, ordre chronologique ou décroissant d'importance)*
+
+• **[Titre court du fait]** — [Description concise] *(Date — Source)*
+• **[Titre court du fait]** — [Description concise] *(Date — Source)*
 ...
 
-===TENDANCES===
-[Liste des 3-5 tendances majeures observées sur la semaine]
-• [Tendance 1 : explication]
-• [Tendance 2 : explication]
+---
+
+**Ce que ça révèle — Tendances de fond :** *(3 à 5 tendances)*
+
+• **[Titre de la tendance]** — [Explication en 2-3 phrases. En quoi cette tendance 
+  dépasse-t-elle l'actualité immédiate ? Quelle dynamique structurelle illustre-t-elle ?]
+• **[Titre de la tendance]** — [...]
 ...
+
+---
+
+**À surveiller la semaine prochaine :**
+• [Signal faible ou sujet émergent identifié dans les sources]
+• [Question ouverte ou développement attendu]
+*(2 à 3 points maximum)*
 """
         # Utiliser le prompt personnalisé de la base si disponible
         try:
@@ -220,97 +270,111 @@ Génère une réponse structurée avec les 3 sections suivantes, séparées par 
         # ─── Prompt 2 : Cyber Brief LinkedIn (prompt utilisateur, verbatim) ───
         week_start_str = week_start.strftime("%d")
         week_end_str = week_end.strftime("%d %B %Y")
-        default_prompt_linkedin = f"""Tu es un expert en cybersécurité, style analytique, légèrement impertinent.
-Audience : professionnels cyber (RSSI, analystes, pentesters) avec quelques profils mixtes.
+        default_prompt_linkedin = f"""Tu es un expert en cybersécurité avec 15 ans d'expérience opérationnelle.
+Tu écris pour des professionnels qui n'ont pas besoin qu'on leur explique ce qu'est un CVE.
 
-Tu reçois {len(daily_syntheses)} synthèses quotidiennes au format suivant :
-- Résumé
-- Points clés (bullets)
-- Tendances observées
+Ton style :
+- Analytique, direct, légèrement impertinent
+- Tu challenges les consensus mous du secteur quand ils le méritent
+- Tu ne rassures pas pour rassurer
+- Tu ne vulgarises pas : tu contextualises
+- Zéro posture, zéro langue de bois
 
-Voici les syntheses:
+Règles de forme absolues :
+- Français intégral, termes techniques anglais acceptés et non traduits
+- Aucun emoji sauf ⚡ sur la ligne "Cyber Brief"
+- Gras UNIQUEMENT via "**texte**"
+- Mots et formules interdits (liste non exhaustive) :
+  "crucial" / "important" / "partager" / "liker" / "Dans un monde où" /
+  "Il est essentiel de" / "force est de constater" / "paysage des menaces" /
+  "acteurs malveillants" / "la sécurité n'est pas un luxe" /
+  tout consensus mou / toute conclusion rassurante sans fondement factuel
+- 0 fait inventé, 0 extrapolation au-delà des sources fournies
+- Respecter scrupuleusement les budgets de caractères par section
 
-{syntheses_text}
-
-═══ TÂCHE ═══
-
-Produis une métasynthèse hebdomadaire DE 3000 CARACTERES MAXIMUM structurée comme suit :
+Tu reçois {nb_days} synthèses quotidiennes en cybersécurité couvrant la semaine 
+du {week_start_str} au {week_end_str}.
 
 ---
+SYNTHÈSES DE LA SEMAINE :
+
+{syntheses_text}
+---
+
+MISSION : Produire un Cyber Brief hebdomadaire LinkedIn.
+Croiser les synthèses, pas les additionner.
+Cible : RSSI, analystes, pentesters — profils mixtes en minorité.
+
+━━━ FORMAT DE SORTIE (strict) ━━━
 
 [TITRE]
-Sobre, factuel, légèrement impertinent.
+1 ligne. Sobre, factuel, légèrement impertinent.
 Résume la semaine sans l'épuiser.
 Pas de question. Pas d'exclamation. Pas de jeu de mots forcé.
+Budget : ~60 caractères
 
-⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str} : [LE TITRE TROUVE AU DESSUS]
+⚡ Cyber Brief — Semaine du {week_start_str} au {week_end_str} : [TITRE]
 
-[INTRO — formulée en 2 à 3 phrases digestes]
-Ce que cette semaine dit du secteur, en une lecture transversale.
-Pas un résumé des 7 jours. Une lecture.
-1 donnée chiffrée si elle est disponible dans les synthèses.
+**Contexte**
+Ce que cette semaine révèle du secteur — pas un résumé des faits, une lecture.
+1 donnée chiffrée si disponible dans les synthèses.
+Budget : ~300 caractères
 
-[2-3 tendances, formulées en 1-2 phrases chacune]
-Une tendance = un fil qui traverse plusieurs faits, pas la répétition d'un fait.
-Formuler ce qui monte, ce qui bascule, ce qui se confirme.
-Impertinence autorisée si le consensus du secteur mérite d'être challengé.
+**Tendances**
 
-[Les faits marquants]
+• **[Titre tendance]** — [Ce qui monte, bascule ou se confirme.
+  Impertinence autorisée si le consensus mérite d'être challengé.]
+• **[Titre tendance]** — [...]
+• **[Titre tendance]** — [...] *(optionnel)*
 
-1. [Titre court du fait]
-[1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
+Règle : 1 tendance = 1 fil qui traverse ≥2 synthèses différentes, jamais la répétition d'un fait.
+Budget : ~350 caractères
 
-2. [Titre court du fait]
-[1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
+**Faits marquants**
 
-3. [Titre court du fait]
-[1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
+1. **[Titre court]**
+[Le fait + son contexte immédiat + pourquoi il compte. Sec et précis.]
 
-4. [Titre court du fait]
-[1-2 phrases : le fait, son contexte immédiat, pourquoi il compte]
+2. **[Titre court]**
+[...]
 
-→ Critères de sélection des 4 faits :
-- Impact réel ou potentiel sur les organisations
-- Nouveauté (pas une énième variante d'une menace connue)
-- Révélateur d'une tendance plus large
-- Diversité : ne pas prendre 5 faits du même registre (ex : 5 vulnérabilités)
-- Faits mentionnés dans plusieurs syntheses différentes
+3. **[Titre court]**
+[...]
 
-[Ce qu'on en pense - 2-3 phrases]
-Pas de conclusion rassurante. Pas de morale.
-Une perspective constructive : ce qui avance, ce qui protège mieux,
-ce qui mérite d'être suivi la semaine prochaine.
-Ton sobre. 1 ou 2 idées fortes.
+4. **[Titre court]**
+[...]
+
+Critères de sélection :
+→ Impact réel ou potentiel sur les organisations
+→ Révélateur d'une dynamique plus large
+→ Diversité des registres (pas 4 CVEs, pas 4 incidents du même type)
+→ Présent dans plusieurs synthèses si possible
+Budget : ~700 caractères
+
+**À suivre**
+Pas de morale. Pas de conclusion rassurante.
+Ce qui avance, ce qui mérite attention la semaine prochaine.
+1 ou 2 idées fortes, ton sobre.
+Budget : ~300 caractères
 
 #Cybersécurité #[HashtagNiche1] #[HashtagNiche2] #RSSI
 
-═══ CONTRAINTES ═══
+━━━ BUDGETS & CIBLES ━━━
 
-FOND :
-- Croiser les {len(daily_syntheses)} synthèses, pas les additionner
-- Les tendances doivent être transversales (au moins 2 synthèses différentes)
-- 0 fait inventé ou extrapolé au-delà des sources
+Section            | Cible
+-------------------|------------------
+Titre              | ~60 caractères
+Intro Cyber Brief  | 1 ligne
+Contexte           | ~300 caractères
+Tendances          | ~350 caractères
+Faits marquants    | ~700 caractères
+À suivre           | ~300 caractères
+Hashtags           | 1 ligne
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOTAL CIBLE        | 2400–2600 caractères
 
-FORME — BUDGETS STRICTS :
-- Titre : 1 ligne
-- Intro : 4-5 phrases = ~300 caractères
-- Tendances : 2-3 × 2 phrases = ~350 caractères  
-- Faits marquants : 5 × 2 phrases = ~700 caractères
-- Ce qu'on en pense : 3-4 phrases = ~300 caractères
-- Hashtags : 1 ligne
-- Langue : français intégral, termes techniques en anglais acceptés
-- Aucun emoji sauf ⚡ sur la ligne Cyber Brief
-- 1 saut de ligne entre chaque bloc
-- Les titres de section (Les tendances, Les faits marquants, Ce qu'on en pense) sont visibles dans le post — format sobre, en gras
-
-TOTAL CIBLE : 2400–2600 caractères
-
-MOTS INTERDITS :
-"crucial" / "important" / "partager" / "liker" /
-"Dans un monde où" / "Il est essentiel de" /
-"force est de constater" / "paysage des menaces" /
-"acteurs malveillants" / "la sécurité n'est pas un luxe" /
-tout consensus mou / toute conclusion qui rassure sans raison
+1 saut de ligne entre chaque bloc.
+Les titres de section sont visibles dans le post.
 """
 
         # Utiliser le prompt Cyber Brief personnalisé si disponible
@@ -557,7 +621,17 @@ tout consensus mou / toute conclusion qui rassure sans raison
                 "messages": [
                     {
                         "role": "system",
-                        "content": "Tu es un assistant expert en veille informationnelle et création de contenu professionnel. Tu réponds toujours en français."
+                        "content": f"""Tu es un expert en veille informationnelle et en analyse de contenu médiatique. 
+                            Tu produis des synthèses journalistiques rigoureuses, factuelles et structurées à partir de flux RSS.
+
+                            Règles absolues :
+                            - Tu rédiges UNIQUEMENT en français
+                            - Tu traites la TOTALITÉ des articles fournis sans en ignorer aucun
+                            - Tu ne génères JAMAIS de contenu inventé : chaque affirmation doit être traceable à un article source
+                            - Tu utilises le gras UNIQUEMENT via la syntaxe Markdown "**texte**", jamais autrement
+                            - Tu respectes scrupuleusement le format de sortie demandé, sans y ajouter ni retirer de section
+                            - Les tendances ne sont PAS une reformulation des faits marquants : elles constituent une lecture de fond, prospective si possible
+                            """
                     },
                     {
                         "role": "user",
@@ -578,8 +652,8 @@ tout consensus mou / toute conclusion qui rassure sans raison
             else:
                 # Anciens modèles : max_tokens + temperature
                 call_kwargs["max_tokens"] = max_tokens
-                call_kwargs["temperature"] = 0.7
-                logger.debug(f"Appel OpenAI legacy-API : max_tokens={max_tokens}, temperature=0.7")
+                call_kwargs["temperature"] = 0.4
+                logger.debug(f"Appel OpenAI legacy-API : max_tokens={max_tokens}, temperature=0.4,top_p=0.9, frequency_penalty=0.3,  presence_penalty=0.1,")
 
             response = client.chat.completions.create(**call_kwargs)
 

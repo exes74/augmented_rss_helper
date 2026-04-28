@@ -53,11 +53,11 @@ class AISynthesizer:
         articles_text = self._format_articles_for_prompt(articles, max_articles=None, truncate_content=False)
 
         # Prompt par défaut (codé en dur)
-        default_prompt = f"""Analyse les {articles_count} articles suivants, collectés le {date_str} dans la catégorie "{category_name}", 
+        default_prompt = f"""Analyse les articles suivants, collectés le {date_str} dans la catégorie "{category_name}", 
 et génère une synthèse structurée selon le format ci-dessous.
 
 ---
-ARTICLES ({articles_count} articles) :
+ARTICLES :
 
 {articles_text}
 ---

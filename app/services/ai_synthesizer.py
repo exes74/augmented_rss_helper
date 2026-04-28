@@ -78,7 +78,7 @@ FORMAT DE SORTIE (à respecter strictement) :
 
 ---
 
-**Points clés :** *(5 à 10 points, ordre décroissant d'importance)*
+**Points clés :**
 
 • [Point 1] *(Source)*
 • [Point 2] *(Source)*
@@ -87,7 +87,7 @@ FORMAT DE SORTIE (à respecter strictement) :
 
 ---
 
-**Et en France ?** *(3 à 5 points — uniquement si des articles couvrent l'actualité française)*
+**Et en France ?** 
 
 • [Point 1 France] *(Source)*
 • [Point 2 France] *(Source)*
@@ -96,7 +96,7 @@ FORMAT DE SORTIE (à respecter strictement) :
 
 ---
 
-**Tendances observées :** *(3 à 5 tendances de fond, issues du croisement des articles)*
+**Tendances observées :** 
 
 • **[Titre court de la tendance]** — [Explication en 1-2 phrases]
 • **[Titre court de la tendance]** — [Explication en 1-2 phrases]
@@ -218,7 +218,7 @@ Quels grands thèmes ont structuré l'actualité ? Quel est le fait saillant abs
 
 ---
 
-**Analyse de la semaine :** *(400 à 500 mots)*
+**Analyse de la semaine :** 
 [Lecture transversale et structurée de la semaine. 
 Identifier les fils conducteurs entre les journées, les ruptures, les accélérations, 
 les contradictions éventuelles. Aller au-delà des faits : proposer une interprétation 
@@ -226,7 +226,7 @@ du contexte et des dynamiques à l'œuvre. Organiser en sous-thèmes si pertinen
 
 ---
 
-**Faits marquants :** *(5 à 7 faits, ordre chronologique ou décroissant d'importance)*
+**Faits marquants :** 
 
 • **[Titre court du fait]** — [Description concise] *(Date — Source)*
 • **[Titre court du fait]** — [Description concise] *(Date — Source)*
@@ -234,7 +234,7 @@ du contexte et des dynamiques à l'œuvre. Organiser en sous-thèmes si pertinen
 
 ---
 
-**Ce que ça révèle — Tendances de fond :** *(3 à 5 tendances)*
+**Ce que ça révèle — Tendances de fond :** 
 
 • **[Titre de la tendance]** — [Explication en 2-3 phrases. En quoi cette tendance 
   dépasse-t-elle l'actualité immédiate ? Quelle dynamique structurelle illustre-t-elle ?]

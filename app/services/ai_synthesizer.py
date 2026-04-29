@@ -186,7 +186,7 @@ Règles absolues :
 
         # ─── Prompt 1 : Super-synthèse + Faits + Tendances ───
         default_prompt_synthese = f"""Tu disposes des synthèses quotidiennes de la semaine {period} pour la catégorie "{category_name}" 
-({nb_days} jours couverts, {total_articles} articles traités au total).
+(7 jours couverts, {total_articles} articles traités au total).
 
 Ta mission : produire une super-synthèse hebdomadaire analytique — pas une concaténation des journées.
 
@@ -292,7 +292,7 @@ Règles de forme absolues :
 - 0 fait inventé, 0 extrapolation au-delà des sources fournies
 - Respecter scrupuleusement les budgets de caractères par section
 
-Tu reçois {nb_days} synthèses quotidiennes en cybersécurité couvrant la semaine 
+Tu reçois 7} synthèses quotidiennes en cybersécurité couvrant la semaine 
 du {week_start_str} au {week_end_str}.
 
 ---

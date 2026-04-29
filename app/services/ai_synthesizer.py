@@ -292,7 +292,7 @@ Règles de forme absolues :
 - 0 fait inventé, 0 extrapolation au-delà des sources fournies
 - Respecter scrupuleusement les budgets de caractères par section
 
-Tu reçois 7} synthèses quotidiennes en cybersécurité couvrant la semaine 
+Tu reçois 7 synthèses quotidiennes en cybersécurité couvrant la semaine 
 du {week_start_str} au {week_end_str}.
 
 ---

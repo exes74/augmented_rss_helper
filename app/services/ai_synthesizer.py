@@ -133,7 +133,7 @@ Règles absolues :
             logger.warning(f"Impossible de charger le prompt personnalisé : {e}")
             prompt = default_prompt
 
-        return self._call_llm(prompt, max_tokens=4000)
+        return self._call_llm_with_validation(prompt, max_tokens=4000, synthesis_type="daily")
 
     def generate_weekly_synthesis(
         self,
@@ -395,12 +395,16 @@ Les titres de section sont visibles dans le post.
             logger.warning(f"Impossible de charger le prompt Cyber Brief personnalisé : {e}")
             prompt_linkedin = default_prompt_linkedin
 
-        # Appel LLM en deux étapes
+        # Appel LLM en deux étapes avec validation du format
         logger.info(f"Super-synthèse hebdo — étape 1 : synthèse + faits + tendances")
-        content_raw, tokens_1 = self._call_llm(prompt_synthese, max_tokens=5000)
+        content_raw, tokens_1 = self._call_llm_with_validation(
+            prompt_synthese, max_tokens=5000, synthesis_type="weekly"
+        )
         if 'Cyber' in category_name:
             logger.info(f"Super-synthèse hebdo — étape 2 : draft LinkedIn Cyber Brief")
-            linkedin_raw, tokens_2 = self._call_llm(prompt_linkedin, max_tokens=2000)
+            linkedin_raw, tokens_2 = self._call_llm_with_validation(
+                prompt_linkedin, max_tokens=2000, synthesis_type="cyberbrief"
+            )
         else:
              linkedin_raw, tokens_2 = '',0
         # Parser les sections de la synthèse
@@ -486,6 +490,149 @@ Les titres de section sont visibles dans le post.
             result["content"] = content
 
         return result
+
+    # ─── Validation du format des synthèses ──────────────────────────────────
+
+    # Sections obligatoires pour chaque type de synthèse
+    _DAILY_REQUIRED_SECTIONS = [
+        "## Synthèse",
+        "**Résumé :",
+        "**Points clés :",
+        "**Et en France ?",
+        "**Tendances observées :",
+    ]
+    _WEEKLY_REQUIRED_SECTIONS = [
+        "## Synthèse hebdomadaire",
+        "**Vue d'ensemble :",
+        "**Analyse de la semaine :",
+        "**Faits marquants :",
+        "**Ce que ça révèle",
+        "**À surveiller",
+    ]
+    _CYBERBRIEF_REQUIRED_SECTIONS = [
+        "⚡ Cyber Brief",
+        "**Contexte",
+        "**Tendances",
+        "**Faits marquants",
+        "**À suivre",
+    ]
+
+    def _validate_synthesis_format(
+        self,
+        content: str,
+        synthesis_type: str,
+    ) -> Tuple[bool, List[str]]:
+        """
+        Vérifie que le contenu généré respecte le format attendu.
+
+        Args:
+            content: Texte généré par le LLM
+            synthesis_type: 'daily', 'weekly' ou 'cyberbrief'
+
+        Returns:
+            Tuple (is_valid, missing_sections)
+        """
+        if not content or len(content.strip()) < 200:
+            return False, ["Contenu trop court ou vide"]
+
+        # Détecter les signes d'une réponse hors-format
+        refusal_patterns = [
+            "je ne peux pas", "je suis désolé", "i cannot", "i'm sorry",
+            "as an ai", "en tant qu'ia", "je suis une ia",
+            "[erreur :", "erreur lors de",
+        ]
+        content_lower = content.lower()
+        for pattern in refusal_patterns:
+            if pattern in content_lower:
+                return False, [f"Réponse hors-format détectée : '{pattern}'"]
+
+        # Vérifier les sections obligatoires selon le type
+        if synthesis_type == "daily":
+            required = self._DAILY_REQUIRED_SECTIONS
+        elif synthesis_type == "weekly":
+            required = self._WEEKLY_REQUIRED_SECTIONS
+        elif synthesis_type == "cyberbrief":
+            required = self._CYBERBRIEF_REQUIRED_SECTIONS
+        else:
+            return True, []  # Type inconnu : on ne valide pas
+
+        missing = [s for s in required if s not in content]
+        return len(missing) == 0, missing
+
+    def _call_llm_with_validation(
+        self,
+        prompt: str,
+        max_tokens: int,
+        synthesis_type: str,
+        max_retries: int = 2,
+    ) -> Tuple[str, int]:
+        """
+        Appelle le LLM et valide le format de la réponse.
+        Re-génère automatiquement si le format n'est pas respecté (jusqu'à max_retries fois).
+
+        Args:
+            prompt: Prompt principal
+            max_tokens: Limite de tokens de sortie
+            synthesis_type: 'daily', 'weekly' ou 'cyberbrief'
+            max_retries: Nombre maximum de tentatives supplémentaires
+
+        Returns:
+            Tuple (response_text, tokens_used_total)
+        """
+        total_tokens = 0
+        current_prompt = prompt
+
+        for attempt in range(1, max_retries + 2):  # +2 : tentative initiale + max_retries
+            content, tokens = self._call_llm(current_prompt, max_tokens)
+            total_tokens += tokens
+
+            is_valid, missing = self._validate_synthesis_format(content, synthesis_type)
+
+            if is_valid:
+                if attempt > 1:
+                    logger.info(
+                        f"Validation OK à la tentative {attempt} "
+                        f"(type={synthesis_type}, tokens_total={total_tokens})"
+                    )
+                return content, total_tokens
+
+            # Format invalide
+            logger.warning(
+                f"Format invalide (tentative {attempt}/{max_retries + 1}, type={synthesis_type}). "
+                f"Sections manquantes : {missing}"
+            )
+
+            if attempt == max_retries + 1:
+                # Dernière tentative épuisée : retourner quand même le contenu
+                # avec un avertissement visible dans l'interface
+                logger.error(
+                    f"Format toujours invalide après {max_retries + 1} tentatives. "
+                    f"Contenu retourné tel quel."
+                )
+                warning_header = (
+                    f"> ⚠️ **Avertissement** : cette synthèse n'a pas respecté le format attendu "
+                    f"après {max_retries + 1} tentatives de génération. "
+                    f"Sections manquantes : {', '.join(missing)}.\n\n"
+                )
+                return warning_header + content, total_tokens
+
+            # Construire un prompt de correction avec la réponse incorrecte en exemple
+            missing_str = "\n".join(f"  - {s}" for s in missing)
+            correction_prompt = (
+                f"{prompt}\n\n"
+                f"---\n"
+                f"IMPORTANT — Ta réponse précédente n'était pas conforme au format demandé.\n"
+                f"Sections manquantes ou incorrectes :\n{missing_str}\n\n"
+                f"Réponse incorrecte (à NE PAS reproduire) :\n"
+                f"```\n{content[:800]}{'...' if len(content) > 800 else ''}\n```\n\n"
+                f"Génère une NOUVELLE réponse en respectant STRICTEMENT le format de sortie "
+                f"décrit dans les consignes ci-dessus. "
+                f"Commence directement par le titre de section `## Synthèse`."
+            )
+            current_prompt = correction_prompt
+
+        # Ne devrait jamais arriver
+        return content, total_tokens
 
     def _call_llm(self, prompt: str, max_tokens: int = 1000) -> Tuple[str, int]:
         """
